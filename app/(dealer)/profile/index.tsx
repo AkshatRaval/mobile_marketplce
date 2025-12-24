@@ -23,7 +23,7 @@ import {
   StatusBar,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -31,9 +31,9 @@ const { width } = Dimensions.get("window");
 const CARD_GAP = 12;
 const CARD_WIDTH = (width - 48 - CARD_GAP) / 2;
 
-const CLOUD_NAME = "dx90g9xvc";
-const CLOUDINARY_API_KEY = "842713721318274";
-const CLOUDINARY_API_SECRET = "eLGko5UuOYXeSHnRQPU_hIJw1ZU";
+const CLOUD_NAME = process.env.EXPO_PUBLIC_CLOUDINARY_NAME;
+const CLOUDINARY_API_KEY = process.env.EXPO_CLOUDINARY_API_KEY;
+const CLOUDINARY_API_SECRET = process.env.EXPO_CLOUDINARY_API_SECRET;
 
 export default function Profile() {
   const { user } = useAuth();
@@ -110,10 +110,7 @@ export default function Profile() {
       let allUsers: any[] = [];
 
       for (const group of chunks) {
-        const q = query(
-          collection(db, "users"),
-          where("uid", "in", group)
-        );
+        const q = query(collection(db, "users"), where("uid", "in", group));
 
         const unsub = onSnapshot(q, (snap) => {
           const users = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
@@ -280,19 +277,20 @@ export default function Profile() {
   // ---------- UI ----------
   const renderHeader = () => (
     <View className="mb-6 px-6">
-
       <View className="flex-row justify-between items-center py-4">
         <Text className="text-3xl font-black text-gray-900">
           My Dealer<Text className="text-indigo-600">ID</Text>
         </Text>
-        <TouchableOpacity onPress={handleLogout} className="bg-gray-100 p-2 rounded-full">
+        <TouchableOpacity
+          onPress={handleLogout}
+          className="bg-gray-100 p-2 rounded-full"
+        >
           <Ionicons name="log-out-outline" size={20} color="black" />
         </TouchableOpacity>
       </View>
 
       {/* ----- PROFILE CARD ----- */}
       <View className="bg-gray-900 rounded-3xl p-6">
-
         <View className="flex-row justify-between items-start mb-6">
           <View className="w-16 h-16 bg-white/10 rounded-2xl items-center justify-center border border-white/20">
             <Text className="text-2xl text-white font-bold">
@@ -312,12 +310,10 @@ export default function Profile() {
           {formData.shopName || "My Shop"}
         </Text>
         <Text className="text-gray-400">{formData.displayName}</Text>
-
       </View>
 
       {/* ----- STATS ----- */}
       <View className="flex-row mt-6 justify-between bg-white p-4 rounded-2xl shadow-sm border">
-
         <View className="items-center flex-1 border-r">
           <Text className="text-xs text-gray-500">Inventory</Text>
           <Text className="text-xl font-black">{listings.length}</Text>
@@ -336,7 +332,6 @@ export default function Profile() {
             {profileData?.soldCount || 0}
           </Text>
         </View>
-
       </View>
 
       {/* ----- CONNECTIONS LIST ----- */}
@@ -364,7 +359,10 @@ export default function Profile() {
                   }}
                   className="w-16 h-16 rounded-full border-2 border-indigo-500"
                 />
-                <Text numberOfLines={1} className="text-xs mt-1 font-semibold w-16 text-center">
+                <Text
+                  numberOfLines={1}
+                  className="text-xs mt-1 font-semibold w-16 text-center"
+                >
                   {item.shopName || item.displayName || "Dealer"}
                 </Text>
               </TouchableOpacity>
@@ -417,7 +415,10 @@ export default function Profile() {
         keyExtractor={(i, idx) => i.id || idx.toString()}
         ListHeaderComponent={renderHeader}
         numColumns={2}
-        columnWrapperStyle={{ justifyContent: "space-between", paddingHorizontal: 24 }}
+        columnWrapperStyle={{
+          justifyContent: "space-between",
+          paddingHorizontal: 24,
+        }}
         renderItem={renderProductCard}
       />
     </View>

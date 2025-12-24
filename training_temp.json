@@ -1,0 +1,702 @@
+[
+    {
+        "input": "samsang s26 ultra 8/128 100%condition 100%battery 8000",
+        "fixed_brand": "Samsung",
+        "data": {
+            "raw_text": "samsang s26 ultra 8/128 100%condition 100%battery 8000",
+            "brand": "Samsung",
+            "model": "S26 Ultra",
+            "ram_gb": 8,
+            "storage_gb": 128,
+            "battery_percent": 100,
+            "condition_percent": 100,
+            "price": 8000
+        }
+    },
+    {
+        "input": "Iphone 15 pro max 256gb natural titanium 99% health full kit 115000",
+        "fixed_brand": "Apple",
+        "data": {
+            "raw_text": "Iphone 15 pro max 256gb natural titanium 99% health full kit 115000",
+            "brand": "Apple",
+            "model": "15 Pro Max",
+            "ram_gb": null,
+            "storage_gb": 256,
+            "battery_percent": 99,
+            "condition_percent": null,
+            "price": 115000
+        }
+    },
+    {
+        "input": "Oneplus 11r 16/256 gb black 100 cond 32k urgent sell",
+        "fixed_brand": "OnePlus",
+        "data": {
+            "raw_text": "Oneplus 11r 16/256 gb black 100 cond 32k urgent sell",
+            "brand": "OnePlus",
+            "model": "11R",
+            "ram_gb": 16,
+            "storage_gb": 256,
+            "battery_percent": null,
+            "condition_percent": null,
+            "price": null
+        }
+    },
+    {
+        "input": "Google pixel 7 pro 12 128 gb hazel mint condition box cable 38999",
+        "fixed_brand": "Google",
+        "data": {
+            "raw_text": "Google pixel 7 pro 12 128 gb hazel mint condition box cable 38999",
+            "brand": "Google",
+            "model": "Pixel 7 Pro",
+            "ram_gb": null,
+            "storage_gb": 128,
+            "battery_percent": null,
+            "condition_percent": null,
+            "price": 38999
+        }
+    },
+    {
+        "input": "S23 ultra 12/512 green \ud83d\udc9a 100% condition warranty left 75000",
+        "fixed_brand": "Samsung",
+        "data": {
+            "raw_text": "S23 ultra 12/512 green \ud83d\udc9a 100% condition warranty left 75000",
+            "brand": "Samsung",
+            "model": "S26 Ultra",
+            "ram_gb": 12,
+            "storage_gb": 512,
+            "battery_percent": null,
+            "condition_percent": 100,
+            "price": 75000
+        }
+    },
+    {
+        "input": "iphone 13 128gb pink battery 88% face id ok 32000",
+        "fixed_brand": "Apple",
+        "data": {
+            "raw_text": "iphone 13 128gb pink battery 88% face id ok 32000",
+            "brand": "Apple",
+            "model": "13",
+            "ram_gb": null,
+            "storage_gb": 128,
+            "battery_percent": 88,
+            "condition_percent": null,
+            "price": 32000
+        }
+    },
+    {
+        "input": "nothing phone 2 12/256 white \ud83e\udd0d full box bill 28000",
+        "fixed_brand": "Nothing",
+        "data": {
+            "raw_text": "nothing phone 2 12/256 white \ud83e\udd0d full box bill 28000",
+            "brand": "Nothing",
+            "model": "Phone 2",
+            "ram_gb": 12,
+            "storage_gb": 256,
+            "battery_percent": null,
+            "condition_percent": null,
+            "price": 28000
+        }
+    },
+    {
+        "input": "Redmi note 13 pro plus 12 512 purple 100% cond 24500",
+        "fixed_brand": "Xiaomi",
+        "data": {
+            "raw_text": "Redmi note 13 pro plus 12 512 purple 100% cond 24500",
+            "brand": "Xiaomi",
+            "model": "Note 13 Pro Plus",
+            "ram_gb": 12,
+            "storage_gb": 512,
+            "battery_percent": null,
+            "condition_percent": 100,
+            "price": 24500
+        }
+    },
+    {
+        "input": "vivo x100 pro 16/512 orange \ud83c\udf4a kit available 65000",
+        "fixed_brand": "Vivo",
+        "data": {
+            "raw_text": "vivo x100 pro 16/512 orange \ud83c\udf4a kit available 65000",
+            "brand": "Vivo",
+            "model": "X100 Pro",
+            "ram_gb": 16,
+            "storage_gb": 512,
+            "battery_percent": null,
+            "condition_percent": null,
+            "price": 65000
+        }
+    },
+    {
+        "input": "Iphone 14 plus 128 gb blue 92% bh clean piece 42000",
+        "fixed_brand": "Apple",
+        "data": {
+            "raw_text": "Iphone 14 plus 128 gb blue 92% bh clean piece 42000",
+            "brand": "Apple",
+            "model": "14 Plus",
+            "ram_gb": null,
+            "storage_gb": 128,
+            "battery_percent": 92,
+            "condition_percent": null,
+            "price": 42000
+        }
+    },
+    {
+        "input": "Sam s24 ultra 12/256 titanium gray 100/100 condition 88000",
+        "fixed_brand": "Samsung",
+        "data": {
+            "raw_text": "Sam s24 ultra 12/256 titanium gray 100/100 condition 88000",
+            "brand": "Samsung",
+            "model": "S26 Ultra",
+            "ram_gb": 12,
+            "storage_gb": 256,
+            "battery_percent": null,
+            "condition_percent": null,
+            "price": 88000
+        }
+    },
+    {
+        "input": "moto edge 50 pro 12 256 lavender \ud83d\udc9c sealed pack 29999",
+        "fixed_brand": "Motorola",
+        "data": {
+            "raw_text": "moto edge 50 pro 12 256 lavender \ud83d\udc9c sealed pack 29999",
+            "brand": "Motorola",
+            "model": "Edge 50 Pro",
+            "ram_gb": 12,
+            "storage_gb": 256,
+            "battery_percent": null,
+            "condition_percent": null,
+            "price": 29999
+        }
+    },
+    {
+        "input": "iphone 11 64gb black 78 health display changed 15000",
+        "fixed_brand": "Apple",
+        "data": {
+            "raw_text": "iphone 11 64gb black 78 health display changed 15000",
+            "brand": "Apple",
+            "model": "11R",
+            "ram_gb": null,
+            "storage_gb": 64,
+            "battery_percent": null,
+            "condition_percent": null,
+            "price": 15000
+        }
+    },
+    {
+        "input": "Poco f5 12/256 carbon black gaming beast 18500",
+        "fixed_brand": "Xiaomi",
+        "data": {
+            "raw_text": "Poco f5 12/256 carbon black gaming beast 18500",
+            "brand": "Xiaomi",
+            "model": "F5",
+            "ram_gb": 12,
+            "storage_gb": 256,
+            "battery_percent": null,
+            "condition_percent": null,
+            "price": 18500
+        }
+    },
+    {
+        "input": "iqoo 12 16/512 legend bmw edition white 100 cond 49999",
+        "fixed_brand": "iQOO",
+        "data": {
+            "raw_text": "iqoo 12 16/512 legend bmw edition white 100 cond 49999",
+            "brand": "iQOO",
+            "model": "12",
+            "ram_gb": 16,
+            "storage_gb": 512,
+            "battery_percent": null,
+            "condition_percent": null,
+            "price": 49999
+        }
+    },
+    {
+        "input": "iphone 15 128 gb black \ud83d\udda4 100% batt cycle count 20 58000",
+        "fixed_brand": "Apple",
+        "data": {
+            "raw_text": "iphone 15 128 gb black \ud83d\udda4 100% batt cycle count 20 58000",
+            "brand": "Apple",
+            "model": "15",
+            "ram_gb": null,
+            "storage_gb": 128,
+            "battery_percent": null,
+            "condition_percent": 100,
+            "price": 58000
+        }
+    },
+    {
+        "input": "Oneplus 9 pro 8/128 silver line on display 12000",
+        "fixed_brand": "OnePlus",
+        "data": {
+            "raw_text": "Oneplus 9 pro 8/128 silver line on display 12000",
+            "brand": "OnePlus",
+            "model": "X100 Pro",
+            "ram_gb": 8,
+            "storage_gb": 128,
+            "battery_percent": null,
+            "condition_percent": null,
+            "price": 12000
+        }
+    },
+    {
+        "input": "Samsung z fold 5 12/512 icy blue warranty out 85000",
+        "fixed_brand": "Samsung",
+        "data": {
+            "raw_text": "Samsung z fold 5 12/512 icy blue warranty out 85000",
+            "brand": "Samsung",
+            "model": "Z Fold 5",
+            "ram_gb": 12,
+            "storage_gb": 512,
+            "battery_percent": null,
+            "condition_percent": null,
+            "price": 85000
+        }
+    },
+    {
+        "input": "iphone x 256 gb white battery service 10000",
+        "fixed_brand": "Apple",
+        "data": {
+            "raw_text": "iphone x 256 gb white battery service 10000",
+            "brand": "Apple",
+            "model": "X",
+            "ram_gb": null,
+            "storage_gb": 256,
+            "battery_percent": null,
+            "condition_percent": null,
+            "price": 10000
+        }
+    },
+    {
+        "input": "pixel 6a 6/128 charcoal body 90% scratchless 16000",
+        "fixed_brand": "Google",
+        "data": {
+            "raw_text": "pixel 6a 6/128 charcoal body 90% scratchless 16000",
+            "brand": "Google",
+            "model": "6A",
+            "ram_gb": 6,
+            "storage_gb": 128,
+            "battery_percent": 90,
+            "condition_percent": null,
+            "price": 16000
+        }
+    },
+    {
+        "input": "realme gt 6t 8/256 silver fluid amoled 26000",
+        "fixed_brand": "Realme",
+        "data": {
+            "raw_text": "realme gt 6t 8/256 silver fluid amoled 26000",
+            "brand": "Realme",
+            "model": "Gt 6T",
+            "ram_gb": 8,
+            "storage_gb": 256,
+            "battery_percent": null,
+            "condition_percent": null,
+            "price": 26000
+        }
+    },
+    {
+        "input": "S22 ultra 12/256 burgundy dot on screen 35000",
+        "fixed_brand": "Samsung",
+        "data": {
+            "raw_text": "S22 ultra 12/256 burgundy dot on screen 35000",
+            "brand": "Samsung",
+            "model": "S26 Ultra",
+            "ram_gb": 12,
+            "storage_gb": 256,
+            "battery_percent": null,
+            "condition_percent": null,
+            "price": 35000
+        }
+    },
+    {
+        "input": "iphone 12 mini 64gb blue 85 health small dent 18000",
+        "fixed_brand": "Apple",
+        "data": {
+            "raw_text": "iphone 12 mini 64gb blue 85 health small dent 18000",
+            "brand": "Apple",
+            "model": "12 Mini",
+            "ram_gb": null,
+            "storage_gb": 64,
+            "battery_percent": null,
+            "condition_percent": null,
+            "price": 18000
+        }
+    },
+    {
+        "input": "xiaomi 14 12/512 jade green leica cam 55000",
+        "fixed_brand": "Xiaomi",
+        "data": {
+            "raw_text": "xiaomi 14 12/512 jade green leica cam 55000",
+            "brand": "Xiaomi",
+            "model": "14",
+            "ram_gb": 12,
+            "storage_gb": 512,
+            "battery_percent": null,
+            "condition_percent": null,
+            "price": 55000
+        }
+    },
+    {
+        "input": "oppo reno 10 pro 12/256 glossy purple bill box 22000",
+        "fixed_brand": "Oppo",
+        "data": {
+            "raw_text": "oppo reno 10 pro 12/256 glossy purple bill box 22000",
+            "brand": "Oppo",
+            "model": "Edge 50 Pro",
+            "ram_gb": 12,
+            "storage_gb": 256,
+            "battery_percent": null,
+            "condition_percent": null,
+            "price": 22000
+        }
+    },
+    {
+        "input": "Sam s21 fe 8/128 olive \ud83e\uded2 5g snapdragon 19000",
+        "fixed_brand": "Samsung",
+        "data": {
+            "raw_text": "Sam s21 fe 8/128 olive \ud83e\uded2 5g snapdragon 19000",
+            "brand": "Samsung",
+            "model": "S21 Fe",
+            "ram_gb": 8,
+            "storage_gb": 128,
+            "battery_percent": null,
+            "condition_percent": null,
+            "price": 19000
+        }
+    },
+    {
+        "input": "iphone 15 plus 256 gb yellow \ud83d\udc9b 100 batt activate today 72000",
+        "fixed_brand": "Apple",
+        "data": {
+            "raw_text": "iphone 15 plus 256 gb yellow \ud83d\udc9b 100 batt activate today 72000",
+            "brand": "Apple",
+            "model": "14 Plus",
+            "ram_gb": null,
+            "storage_gb": 256,
+            "battery_percent": null,
+            "condition_percent": null,
+            "price": 72000
+        }
+    },
+    {
+        "input": "Nothing phone 1 8 256 black glyph working 16000",
+        "fixed_brand": "Nothing",
+        "data": {
+            "raw_text": "Nothing phone 1 8 256 black glyph working 16000",
+            "brand": "Nothing",
+            "model": "Phone 2",
+            "ram_gb": 8,
+            "storage_gb": 256,
+            "battery_percent": null,
+            "condition_percent": null,
+            "price": 16000
+        }
+    },
+    {
+        "input": "Samsung m34 6/128 blue 6000mah battery 11000",
+        "fixed_brand": "Samsung",
+        "data": {
+            "raw_text": "Samsung m34 6/128 blue 6000mah battery 11000",
+            "brand": "Samsung",
+            "model": "M34",
+            "ram_gb": 6,
+            "storage_gb": 128,
+            "battery_percent": null,
+            "condition_percent": null,
+            "price": 11000
+        }
+    },
+    {
+        "input": "iphone 14 pro 256gb deep purple \ud83d\udfe3 90 bh mint 78000",
+        "fixed_brand": "Apple",
+        "data": {
+            "raw_text": "iphone 14 pro 256gb deep purple \ud83d\udfe3 90 bh mint 78000",
+            "brand": "Apple",
+            "model": "X100 Pro",
+            "ram_gb": null,
+            "storage_gb": 256,
+            "battery_percent": null,
+            "condition_percent": null,
+            "price": 78000
+        }
+    },
+    {
+        "input": "Oneplus nord ce 3 8/128 grey clean condition 15000",
+        "fixed_brand": "OnePlus",
+        "data": {
+            "raw_text": "Oneplus nord ce 3 8/128 grey clean condition 15000",
+            "brand": "OnePlus",
+            "model": "Nord Ce 3",
+            "ram_gb": 8,
+            "storage_gb": 128,
+            "battery_percent": null,
+            "condition_percent": null,
+            "price": 15000
+        }
+    },
+    {
+        "input": "pixel 8 8/128 rose \ud83c\udf39 warranty available 45000",
+        "fixed_brand": "Google",
+        "data": {
+            "raw_text": "pixel 8 8/128 rose \ud83c\udf39 warranty available 45000",
+            "brand": "Google",
+            "model": "8",
+            "ram_gb": 8,
+            "storage_gb": 128,
+            "battery_percent": null,
+            "condition_percent": null,
+            "price": 45000
+        }
+    },
+    {
+        "input": "vivo v30 pro 12/512 andaman blue zeiss 36000",
+        "fixed_brand": "Vivo",
+        "data": {
+            "raw_text": "vivo v30 pro 12/512 andaman blue zeiss 36000",
+            "brand": "Vivo",
+            "model": "X100 Pro",
+            "ram_gb": 12,
+            "storage_gb": 512,
+            "battery_percent": null,
+            "condition_percent": null,
+            "price": 36000
+        }
+    },
+    {
+        "input": "iphone se 2020 64 gb red 82 battery touch id ok 9500",
+        "fixed_brand": "Apple",
+        "data": {
+            "raw_text": "iphone se 2020 64 gb red 82 battery touch id ok 9500",
+            "brand": "Apple",
+            "model": "Se",
+            "ram_gb": null,
+            "storage_gb": 64,
+            "battery_percent": null,
+            "condition_percent": null,
+            "price": 9500
+        }
+    },
+    {
+        "input": "S20 fe 5g 8/128 navy blue cloud mint 13000",
+        "fixed_brand": "Samsung",
+        "data": {
+            "raw_text": "S20 fe 5g 8/128 navy blue cloud mint 13000",
+            "brand": "Samsung",
+            "model": "Fe 5G",
+            "ram_gb": 8,
+            "storage_gb": 128,
+            "battery_percent": null,
+            "condition_percent": null,
+            "price": 13000
+        }
+    },
+    {
+        "input": "iphone 13 pro 256 sierra blue 89 health true tone ok 58000",
+        "fixed_brand": "Apple",
+        "data": {
+            "raw_text": "iphone 13 pro 256 sierra blue 89 health true tone ok 58000",
+            "brand": "Apple",
+            "model": "X100 Pro",
+            "ram_gb": null,
+            "storage_gb": null,
+            "battery_percent": null,
+            "condition_percent": null,
+            "price": 58000
+        }
+    },
+    {
+        "input": "motorola razr 40 ultra 8/256 peach fuzz flip 45000",
+        "fixed_brand": "Motorola",
+        "data": {
+            "raw_text": "motorola razr 40 ultra 8/256 peach fuzz flip 45000",
+            "brand": "Motorola",
+            "model": "Razr 40 Ultra",
+            "ram_gb": 8,
+            "storage_gb": 256,
+            "battery_percent": null,
+            "condition_percent": null,
+            "price": 45000
+        }
+    },
+    {
+        "input": "Realme 12 pro plus 8 256 navigator beige 23000",
+        "fixed_brand": "Realme",
+        "data": {
+            "raw_text": "Realme 12 pro plus 8 256 navigator beige 23000",
+            "brand": "Realme",
+            "model": "Note 13 Pro Plus",
+            "ram_gb": 8,
+            "storage_gb": 256,
+            "battery_percent": null,
+            "condition_percent": null,
+            "price": 23000
+        }
+    },
+    {
+        "input": "iphone 16 pro 128 desert titanium booking receipt 119900",
+        "fixed_brand": "Apple",
+        "data": {
+            "raw_text": "iphone 16 pro 128 desert titanium booking receipt 119900",
+            "brand": "Apple",
+            "model": "X100 Pro",
+            "ram_gb": 16,
+            "storage_gb": 128,
+            "battery_percent": null,
+            "condition_percent": null,
+            "price": 119900
+        }
+    },
+    {
+        "input": "S24 plus 12/256 violet \ud83d\udc9c 100 condition 68000",
+        "fixed_brand": "Samsung",
+        "data": {
+            "raw_text": "S24 plus 12/256 violet \ud83d\udc9c 100 condition 68000",
+            "brand": "Samsung",
+            "model": "14 Plus",
+            "ram_gb": 12,
+            "storage_gb": 256,
+            "battery_percent": null,
+            "condition_percent": null,
+            "price": 68000
+        }
+    },
+    {
+        "input": "google pixel 4xl 6/64 orange face unlock fail 7000",
+        "fixed_brand": "Google",
+        "data": {
+            "raw_text": "google pixel 4xl 6/64 orange face unlock fail 7000",
+            "brand": "Google",
+            "model": "Pixel 7 Pro",
+            "ram_gb": 6,
+            "storage_gb": 64,
+            "battery_percent": null,
+            "condition_percent": null,
+            "price": 7000
+        }
+    },
+    {
+        "input": "iphone xr 128 gb coral body 88% battery 14000",
+        "fixed_brand": "Apple",
+        "data": {
+            "raw_text": "iphone xr 128 gb coral body 88% battery 14000",
+            "brand": "Apple",
+            "model": "X",
+            "ram_gb": null,
+            "storage_gb": 128,
+            "battery_percent": 88,
+            "condition_percent": null,
+            "price": 14000
+        }
+    },
+    {
+        "input": "Asus rog 6 12/256 black gaming phone rgb light 32000",
+        "fixed_brand": "Asus",
+        "data": {
+            "raw_text": "Asus rog 6 12/256 black gaming phone rgb light 32000",
+            "brand": "Asus",
+            "model": "Rog 6",
+            "ram_gb": 12,
+            "storage_gb": 256,
+            "battery_percent": null,
+            "condition_percent": null,
+            "price": 32000
+        }
+    },
+    {
+        "input": "honor 90 8/256 diamond silver 200mp cam 21000",
+        "fixed_brand": "Honor",
+        "data": {
+            "raw_text": "honor 90 8/256 diamond silver 200mp cam 21000",
+            "brand": "Honor",
+            "model": "",
+            "ram_gb": 8,
+            "storage_gb": 256,
+            "battery_percent": null,
+            "condition_percent": null,
+            "price": 21000
+        }
+    },
+    {
+        "input": "iphone 14 128gb midnight \ud83c\udf11 95% health 100% condition 45000",
+        "fixed_brand": "Apple",
+        "data": {
+            "raw_text": "iphone 14 128gb midnight \ud83c\udf11 95% health 100% condition 45000",
+            "brand": "Apple",
+            "model": "14",
+            "ram_gb": null,
+            "storage_gb": 128,
+            "battery_percent": 95,
+            "condition_percent": 100,
+            "price": 45000
+        }
+    },
+    {
+        "input": "samsang a55 8/256 awesome lilac sealed 33000",
+        "fixed_brand": "Samsung",
+        "data": {
+            "raw_text": "samsang a55 8/256 awesome lilac sealed 33000",
+            "brand": "Samsung",
+            "model": "A55",
+            "ram_gb": 8,
+            "storage_gb": 256,
+            "battery_percent": null,
+            "condition_percent": null,
+            "price": 33000
+        }
+    },
+    {
+        "input": "oneplus 12 16/512 flowy emerald 100 batt 58000",
+        "fixed_brand": "OnePlus",
+        "data": {
+            "raw_text": "oneplus 12 16/512 flowy emerald 100 batt 58000",
+            "brand": "OnePlus",
+            "model": "12",
+            "ram_gb": 16,
+            "storage_gb": 512,
+            "battery_percent": null,
+            "condition_percent": null,
+            "price": 58000
+        }
+    },
+    {
+        "input": "iphone 15 pro 1 tb natural titanium usa variant 95000",
+        "fixed_brand": "Apple",
+        "data": {
+            "raw_text": "iphone 15 pro 1 tb natural titanium usa variant 95000",
+            "brand": "Apple",
+            "model": "15 Pro Max",
+            "ram_gb": null,
+            "storage_gb": null,
+            "battery_percent": null,
+            "condition_percent": null,
+            "price": 95000
+        }
+    },
+    {
+        "input": "cmf phone 1 8/128 orange screw back 14500",
+        "fixed_brand": "Nothing",
+        "data": {
+            "raw_text": "cmf phone 1 8/128 orange screw back 14500",
+            "brand": "Nothing",
+            "model": "Phone 2",
+            "ram_gb": 8,
+            "storage_gb": 128,
+            "battery_percent": null,
+            "condition_percent": null,
+            "price": 14500
+        }
+    },
+    {
+        "input": "tecno pova 5 pro 8/256 led back light 11000",
+        "fixed_brand": "Tecno",
+        "data": {
+            "raw_text": "tecno pova 5 pro 8/256 led back light 11000",
+            "brand": "Tecno",
+            "model": "Pova 5 Pro",
+            "ram_gb": 8,
+            "storage_gb": 256,
+            "battery_percent": null,
+            "condition_percent": null,
+            "price": 11000
+        }
+    }
+]

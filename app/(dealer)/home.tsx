@@ -40,11 +40,13 @@ interface Product {
 }
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
-
 const ProductCard: React.FC<{ item: Product; height: number }> = ({ item, height }) => {
   const [activeImageUri, setActiveImageUri] = useState(item.images?.[0]);
   const [isViewerVisible, setIsViewerVisible] = useState(false);
   const [currentViewerIndex, setCurrentViewerIndex] = useState(0);
+  
+  // New state for expanding description
+  const [expanded, setExpanded] = useState(false);
 
   const viewerImages = (item.images || []).map((uri) => ({ uri }));
 
@@ -69,47 +71,75 @@ const ProductCard: React.FC<{ item: Product; height: number }> = ({ item, height
   return (
     <View style={{ height, width: SCREEN_WIDTH }} className="bg-white border-b border-gray-100">
       <View className="flex-1 m-2 rounded-[30px] overflow-hidden relative bg-black">
+        
+        {/* 1. MAIN IMAGE & LIGHTER GRADIENT */}
         <Pressable onPress={openImageViewer} className="w-full h-full">
           <Image source={{ uri: activeImageUri }} className="w-full h-full" resizeMode="cover" />
+          
+          {/* Lighter Gradient: Stopped at 0.6 opacity and reduced height to 40% */}
           <LinearGradient
-            colors={["transparent", "rgba(0,0,0,0.6)", "rgba(0,0,0,0.9)", "#000"]}
-            style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: "60%" }}
+            colors={["transparent", "rgba(0,0,0,0.3)", "rgba(0,0,0,0.6)", "rgba(0,0,0,0.8)"]}
+            style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: "40%" }}
           />
         </Pressable>
 
-        <View className="absolute bottom-0 w-full px-5 pb-5">
-          <View className="mb-4">
-            <Text className="text-white font-black text-3xl mb-1">{item.name}</Text>
-            <Text className="text-yellow-400 font-bold text-2xl">₹{item.price}</Text>
-            <Text numberOfLines={1} className="text-gray-400 text-xs mt-1">
-              {item.description || "Mint condition"}
+        {/* 2. TOP-LEFT PROFILE HEADER (New Location) */}
+        <TouchableOpacity 
+          onPress={goToProfile} 
+          className="absolute top-4 left-4 flex-row items-center bg-black/40 px-3 py-2 rounded-full backdrop-blur-md"
+        >
+          <Image
+            source={{
+              uri: item.dealerAvatar || `https://ui-avatars.com/api/?name=${item.dealerName}&background=random`,
+            }}
+            className="w-8 h-8 rounded-full border border-white/50"
+          />
+          <View className="ml-2">
+            <Text className="text-white font-bold text-xs shadow-black">{item.dealerName}</Text>
+            {/* Using city or shopName as subtext */}
+            <Text className="text-gray-200 text-[10px] shadow-black">{item.city}</Text>
+          </View>
+        </TouchableOpacity>
+
+        {/* 3. BOTTOM INFO & ACTIONS */}
+        <View className="absolute bottom-0 w-full px-5 pb-6">
+          <View className="flex-row items-end justify-between mb-3">
+             {/* Title & Price */}
+             <View className="flex-1 mr-4">
+                <Text className="text-white font-black text-3xl mb-1 shadow-sm leading-tight">
+                  {item.name}
+                </Text>
+                <Text className="text-yellow-400 font-bold text-2xl shadow-sm">
+                  ₹{item.price}
+                </Text>
+             </View>
+
+             {/* Chat Button (Right Aligned) */}
+             <TouchableOpacity 
+               onPress={openWhatsApp} 
+               className="bg-white rounded-full h-12 w-12 items-center justify-center shadow-lg"
+             >
+               <Ionicons name="chatbubble" size={20} color="black" />
+             </TouchableOpacity>
+          </View>
+
+          {/* Expandable Description */}
+          <Pressable onPress={() => setExpanded(!expanded)}>
+            <Text 
+              numberOfLines={expanded ? undefined : 2} 
+              className="text-gray-300 text-sm leading-5"
+            >
+              {item.description || "Mint condition. DM for more details."}
             </Text>
-          </View>
-
-          <View className="h-[1px] bg-white/20 mb-4" />
-
-          <View className="flex-row items-center justify-between">
-            <TouchableOpacity onPress={goToProfile} className="flex-row items-center flex-1 mr-2">
-              <Image
-                source={{
-                  uri:
-                    item.dealerAvatar ||
-                    `https://ui-avatars.com/api/?name=${item.dealerName}&background=random`,
-                }}
-                className="w-10 h-10 rounded-full border border-white"
-              />
-              <View className="ml-3">
-                <Text className="text-white font-bold text-sm">{item.dealerName}</Text>
-                <Text className="text-gray-400 text-[10px]">{item.city}</Text>
-              </View>
-            </TouchableOpacity>
-
-            <TouchableOpacity onPress={openWhatsApp} className="bg-white rounded-full px-6 py-3 flex-row items-center">
-              <Ionicons name="chatbubble" size={16} color="black" style={{ marginRight: 6 }} />
-              <Text className="text-black font-black text-sm uppercase">Chat</Text>
-            </TouchableOpacity>
-          </View>
+            {/* Show "More/Less" text if description is somewhat long */}
+            {(item.description?.length || 0) > 60 && (
+               <Text className="text-gray-500 text-xs mt-1 font-bold">
+                 {expanded ? "Show Less" : "...more"}
+               </Text>
+            )}
+          </Pressable>
         </View>
+
       </View>
 
       <ImageView
