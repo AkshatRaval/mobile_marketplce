@@ -51,7 +51,6 @@ init_db()
 
 class ListingParser:
     def __init__(self):
-        # Heuristics for "Loose Numbers" (8 256)
         self.common_ram = {4, 6, 8, 12, 16, 18, 24}
         self.common_storage = {32, 64, 128, 256, 512, 1024}
 

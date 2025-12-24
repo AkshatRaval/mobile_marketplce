@@ -1,280 +1,316 @@
-import { auth, db } from "@/FirebaseConfig"; // Make sure auth is imported
+import { auth, db } from "@/FirebaseConfig";
 import { useAuth } from "@/src/context/AuthContext";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
-    arrayUnion,
-    collection,
-    doc,
-    getDoc,
-    getDocs,
-    query,
-    updateDoc,
-    where,
+  arrayRemove,
+  arrayUnion,
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  where,
+  writeBatch
 } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Dimensions,
-    FlatList,
-    Image,
-    Linking,
-    StatusBar,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  FlatList,
+  Image,
+  Linking,
+  StatusBar,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 
+// --- DIMENSIONS ---
 const { width } = Dimensions.get("window");
-const COLUMN_WIDTH = width / 2 - 24; 
+const COLUMN_WIDTH = (width - 48) / 2; 
 
 export default function PublicDealerProfile() {
   const { id } = useLocalSearchParams();
-  const {user} = useAuth()
+  const { user, userDoc } = useAuth(); // Get userDoc to check current status
   const router = useRouter();
+
+  // Redirect if viewing own profile
   useEffect(() => {
-    if(id === user?.uid){
-        router.replace('/profile')
-    }
-  },[id])
+    if (id === user?.uid) router.replace("/profile");
+  }, [id]);
 
   const [dealerData, setDealerData] = useState<any>(null);
   const [inventory, setInventory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [addingToCircle, setAddingToCircle] = useState(false);
+  const [requestStatus, setRequestStatus] = useState<"none" | "pending" | "connected">("none");
+  const [processing, setProcessing] = useState(false);
 
+  // --- FETCH DATA ---
   useEffect(() => {
     const fetchData = async () => {
-      console.log(id);
       try {
         if (!id) return;
-        const dealerId = Array.isArray(id) ? id[0] : id; // Safety check
+        const dealerId = Array.isArray(id) ? id[0] : id;
 
-        // 1. Fetch Dealer Profile
+        // 1. Dealer Profile
         const userSnap = await getDoc(doc(db, "users", dealerId));
-        if (userSnap.exists()) {
-          setDealerData(userSnap.data());
-        }
+        if (userSnap.exists()) setDealerData(userSnap.data());
 
-        // 2. Fetch Dealer's Inventory (Products)
-        const q = query(
-          collection(db, "products"),
-          where("userId", "==", dealerId)
-        );
+        // 2. Inventory
+        const q = query(collection(db, "products"), where("userId", "==", dealerId));
         const productsSnap = await getDocs(q);
-        const products = productsSnap.docs.map((d) => ({
-          id: d.id,
-          ...d.data(),
-        }));
-        setInventory(products);
+        setInventory(productsSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+        
+        // 3. Check Connection Status
+        if (userDoc) {
+          if (userDoc.connections?.includes(dealerId)) {
+            setRequestStatus("connected");
+          } else if (userDoc.outgoingRequests?.includes(dealerId)) {
+            setRequestStatus("pending");
+          } else {
+            setRequestStatus("none");
+          }
+        }
       } catch (error) {
         console.error("Error loading profile:", error);
       } finally {
         setLoading(false);
       }
     };
-
     fetchData();
-  }, [id]);
+  }, [id, userDoc]); // Re-run if userDoc updates
 
   // --- ACTIONS ---
-
   const openWhatsApp = () => {
-    if (!dealerData?.phoneNumber) {
-      Alert.alert("No Info", "This dealer hasn't provided a phone number.");
-      return;
-    }
-    const url = `whatsapp://send?phone=${dealerData.phoneNumber}`;
-    Linking.openURL(url).catch(() =>
+    if (!dealerData?.phoneNumber) return Alert.alert("No Info", "Number not available.");
+    Linking.openURL(`whatsapp://send?phone=${dealerData.phoneNumber}`).catch(() =>
       Alert.alert("Error", "Could not open WhatsApp")
     );
   };
 
-  const handleAddToCircle = async () => {
-    const currentUser = auth.currentUser;
-    if (!currentUser) return;
-
-    setAddingToCircle(true);
+  const handleConnect = async () => {
+    if (!auth.currentUser || !id) return;
+    const dealerId = Array.isArray(id) ? id[0] : id;
+    
+    setProcessing(true);
     try {
-      const myUserRef = doc(db, "users", currentUser.uid);
-      // Add this dealer's ID to my 'connections' array
-      await updateDoc(myUserRef, {
-        connections: arrayUnion(id),
-      });
-      Alert.alert("Success", "Added to your Circle!");
+      const batch = writeBatch(db);
+      const myRef = doc(db, "users", auth.currentUser.uid);
+      const dealerRef = doc(db, "users", dealerId);
+
+      if (requestStatus === "none") {
+        // --- SEND REQUEST ---
+        // 1. Add to MY 'outgoingRequests'
+        batch.update(myRef, {
+          outgoingRequests: arrayUnion(dealerId)
+        });
+        // 2. Add to THEIR 'pendingRequests' (This triggers their notification)
+        batch.update(dealerRef, {
+          pendingRequests: arrayUnion(auth.currentUser.uid)
+        });
+        
+        await batch.commit();
+        setRequestStatus("pending");
+        Alert.alert("Request Sent", "Waiting for approval.");
+
+      } else if (requestStatus === "pending") {
+        // --- CANCEL REQUEST ---
+        batch.update(myRef, {
+          outgoingRequests: arrayRemove(dealerId)
+        });
+        batch.update(dealerRef, {
+          pendingRequests: arrayRemove(auth.currentUser.uid)
+        });
+
+        await batch.commit();
+        setRequestStatus("none");
+        Alert.alert("Cancelled", "Request withdrawn.");
+      }
+
     } catch (error) {
-      Alert.alert("Error", "Could not add connection.");
+      console.error(error);
+      Alert.alert("Error", "Could not update connection.");
     } finally {
-      setAddingToCircle(false);
+      setProcessing(false);
     }
   };
 
-  // --- RENDERERS ---
-
   if (loading) {
     return (
-      <View className="flex-1 justify-center items-center bg-white">
+      <View className="flex-1 justify-center items-center bg-gray-50">
         <ActivityIndicator size="large" color="#4F46E5" />
       </View>
     );
   }
 
-  if (!dealerData) {
-    return (
-      <View className="flex-1 justify-center items-center bg-white px-6">
-        <Text className="text-gray-500 mb-4">Dealer profile not found.</Text>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          className="bg-black px-6 py-3 rounded-full"
-        >
-          <Text className="text-white font-bold">Go Back</Text>
-        </TouchableOpacity>
+  if (!dealerData) return null;
+
+  // --- RENDER HEADER ---
+  const renderHeader = () => (
+    <View className="mb-6">
+      {/* 1. COVER IMAGE */}
+      <View className="h-40 w-full overflow-hidden">
+        <LinearGradient
+          colors={["#4F46E5", "#818CF8"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          className="w-full h-full"
+        />
+        <View className="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-xl" />
+        <View className="absolute top-10 -left-10 w-24 h-24 bg-white/10 rounded-full blur-xl" />
       </View>
-    );
-  }
+
+      {/* 2. PROFILE CARD */}
+      <View className="mx-5 -mt-16 bg-white rounded-3xl p-5 shadow-lg shadow-indigo-100 border border-gray-50 items-center">
+        <Image
+          source={{
+            uri: dealerData.photoURL || `https://ui-avatars.com/api/?name=${dealerData.displayName}&background=random&size=200`,
+          }}
+          className="w-24 h-24 rounded-full border-4 border-white -mt-16 mb-3 bg-gray-200"
+        />
+
+        <View className="flex-row items-center justify-center">
+          <Text className="text-2xl font-black text-gray-900 text-center">
+            {dealerData.shopName || dealerData.displayName}
+          </Text>
+          <Ionicons name="checkmark-circle" size={20} color="#4F46E5" style={{ marginLeft: 6 }} />
+        </View>
+
+        <Text className="text-gray-500 font-medium text-sm mt-1 mb-4">
+          @{dealerData.displayName.replace(/\s/g, "").toLowerCase()} • {dealerData.city || "Global"}
+        </Text>
+
+        {/* Stats */}
+        <View className="flex-row w-full justify-between px-6 py-4 bg-gray-50 rounded-2xl mb-5">
+          <View className="items-center flex-1">
+            <Text className="text-xl font-black text-gray-900">{inventory.length}</Text>
+            <Text className="text-[10px] uppercase font-bold text-gray-400 mt-1">Items</Text>
+          </View>
+          <View className="w-[1px] bg-gray-200 h-full mx-2" />
+          <View className="items-center flex-1">
+            <Text className="text-xl font-black text-gray-900">4.9</Text>
+            <Text className="text-[10px] uppercase font-bold text-gray-400 mt-1">Rating</Text>
+          </View>
+          <View className="w-[1px] bg-gray-200 h-full mx-2" />
+          <View className="items-center flex-1">
+            <Text className="text-xl font-black text-green-600">Open</Text>
+            <Text className="text-[10px] uppercase font-bold text-gray-400 mt-1">Status</Text>
+          </View>
+        </View>
+
+        {/* Action Buttons */}
+        <View className="flex-row gap-3 w-full">
+          <TouchableOpacity
+            onPress={openWhatsApp}
+            className="flex-1 bg-green-500 py-3.5 rounded-xl flex-row justify-center items-center shadow-sm active:opacity-90"
+          >
+            <Ionicons name="logo-whatsapp" size={18} color="white" style={{ marginRight: 6 }} />
+            <Text className="text-white font-bold text-sm">WhatsApp</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={handleConnect}
+            disabled={processing || requestStatus === "connected"}
+            className={`flex-1 py-3.5 rounded-xl flex-row justify-center items-center shadow-sm border ${
+              requestStatus === "connected" 
+                ? "bg-green-100 border-green-200" 
+                : requestStatus === "pending"
+                ? "bg-yellow-50 border-yellow-200"
+                : "bg-gray-900 border-gray-900"
+            }`}
+          >
+            {processing ? (
+              <ActivityIndicator color={requestStatus === "none" ? "white" : "gray"} size="small" />
+            ) : (
+              <>
+                <Ionicons 
+                  name={requestStatus === "connected" ? "checkmark" : requestStatus === "pending" ? "time" : "person-add"} 
+                  size={18} 
+                  color={requestStatus === "none" ? "white" : requestStatus === "connected" ? "#16A34A" : "#CA8A04"} 
+                  style={{ marginRight: 6 }} 
+                />
+                <Text className={`font-bold text-sm ${
+                   requestStatus === "connected" ? "text-green-700" : requestStatus === "pending" ? "text-yellow-700" : "text-white"
+                }`}>
+                  {requestStatus === "connected" ? "Connected" : requestStatus === "pending" ? "Pending" : "Connect"}
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <Text className="px-6 mt-4 text-lg font-black text-gray-900">
+        Inventory <Text className="text-gray-400 font-medium text-sm">({inventory.length})</Text>
+      </Text>
+    </View>
+  );
+
+  const renderProduct = ({ item }: { item: any }) => (
+    <TouchableOpacity
+      activeOpacity={0.9}
+      onPress={() => console.log("Product clicked")} // Navigate to details if needed
+      style={{ width: COLUMN_WIDTH }}
+      className="bg-white rounded-2xl mb-4 shadow-sm shadow-gray-200 border border-gray-100 overflow-hidden"
+    >
+      <View className="h-40 bg-gray-100 relative">
+        <Image source={{ uri: item.images?.[0] }} className="w-full h-full" resizeMode="cover" />
+        <View className="absolute bottom-2 right-2 bg-black/70 px-2 py-1 rounded-lg backdrop-blur-sm">
+          <Text className="text-white font-bold text-xs">₹{parseInt(item.price).toLocaleString()}</Text>
+        </View>
+      </View>
+
+      <View className="p-3">
+        <Text numberOfLines={1} className="font-bold text-gray-900 text-sm mb-1 leading-5">
+          {item.name}
+        </Text>
+        <Text numberOfLines={1} className="text-gray-400 text-xs mb-3">
+          {item.extractedData?.brand || "Phone"} • {item.extractedData?.storageGb ? `${item.extractedData.storageGb}GB` : "Mint"}
+        </Text>
+        
+        <View className="flex-row items-center justify-between">
+            <View className="bg-indigo-50 px-2 py-1 rounded-md">
+                <Text className="text-[10px] font-bold text-indigo-600 uppercase">View</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={14} color="#CBD5E1" />
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
 
   return (
-    <SafeAreaView className="flex-1 bg-white" edges={["top"]}>
-      <StatusBar barStyle="dark-content" />
+    <View className="flex-1 bg-gray-50">
+      <StatusBar barStyle="light-content" />
 
-      {/* HEADER */}
-      <View className="px-4 py-2 flex-row items-center border-b border-gray-100 bg-white z-10">
+      {/* FIXED BACK BUTTON */}
+      <View className="absolute top-12 left-5 z-20">
         <TouchableOpacity
           onPress={() => router.back()}
-          className="p-2 -ml-2 rounded-full active:bg-gray-100"
+          className="w-10 h-10 bg-black/20 rounded-full items-center justify-center backdrop-blur-md border border-white/20"
         >
-          <Ionicons name="arrow-back" size={24} color="black" />
+          <Ionicons name="arrow-back" size={24} color="white" />
         </TouchableOpacity>
-        <Text className="font-bold text-lg ml-2">
-          {dealerData.shopName || "Dealer Profile"}
-        </Text>
       </View>
 
       <FlatList
         data={inventory}
         keyExtractor={(item) => item.id}
+        renderItem={renderProduct}
         numColumns={2}
-        contentContainerStyle={{ padding: 16, paddingBottom: 50 }}
-        columnWrapperStyle={{ justifyContent: "space-between" }}
-        // --- DEALER INFO HEADER ---
-        ListHeaderComponent={() => (
-          <View className="items-center mb-8">
-            {/* Avatar */}
-            <Image
-              source={{
-                uri:
-                  dealerData.photoURL ||
-                  `https://ui-avatars.com/api/?name=${dealerData.displayName}&background=random`,
-              }}
-              className="w-24 h-24 rounded-full border-4 border-gray-50 mb-3"
-            />
-            <Text className="text-2xl font-black text-gray-900 text-center">
-              {dealerData.displayName}
-            </Text>
-            <View className="flex-row items-center mt-1">
-              <Ionicons name="location" size={14} color="#6B7280" />
-              <Text className="text-gray-500 text-sm ml-1">
-                {dealerData.city || "Online Dealer"}
-              </Text>
-            </View>
-
-            {/* Stats Grid */}
-            <View className="flex-row mt-6 w-full justify-center gap-8 border-y border-gray-100 py-4">
-              <View className="items-center">
-                <Text className="font-bold text-lg">{inventory.length}</Text>
-                <Text className="text-xs text-gray-400 uppercase tracking-wide">
-                  Phones
-                </Text>
-              </View>
-              <View className="w-[1px] bg-gray-200" />
-              <View className="items-center">
-                <Text className="font-bold text-lg">4.9</Text>
-                <Text className="text-xs text-gray-400 uppercase tracking-wide">
-                  Rating
-                </Text>
-              </View>
-              <View className="w-[1px] bg-gray-200" />
-              <View className="items-center">
-                <Text className="font-bold text-lg text-green-600">Active</Text>
-                <Text className="text-xs text-gray-400 uppercase tracking-wide">
-                  Status
-                </Text>
-              </View>
-            </View>
-
-            {/* Buttons */}
-            <View className="flex-row gap-3 mt-6 w-full">
-              <TouchableOpacity
-                onPress={openWhatsApp}
-                className="flex-1 bg-[#25D366] py-3.5 rounded-xl flex-row justify-center items-center shadow-sm"
-              >
-                <Ionicons
-                  name="logo-whatsapp"
-                  size={20}
-                  color="white"
-                  style={{ marginRight: 8 }}
-                />
-                <Text className="text-white font-bold">WhatsApp</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={handleAddToCircle}
-                disabled={addingToCircle}
-                className="flex-1 bg-gray-900 py-3.5 rounded-xl flex-row justify-center items-center shadow-sm"
-              >
-                {addingToCircle ? (
-                  <ActivityIndicator color="white" />
-                ) : (
-                  <>
-                    <Ionicons
-                      name="people"
-                      size={20}
-                      color="white"
-                      style={{ marginRight: 8 }}
-                    />
-                    <Text className="text-white font-bold">Add to Circle</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            </View>
-
-            <Text className="self-start mt-8 text-lg font-bold text-gray-900">
-              Available Stock
-            </Text>
-          </View>
-        )}
-        // --- EMPTY STATE ---
+        contentContainerStyle={{ paddingBottom: 50 }}
+        columnWrapperStyle={{ paddingHorizontal: 24, justifyContent: "space-between" }}
+        ListHeaderComponent={renderHeader}
+        showsVerticalScrollIndicator={false}
         ListEmptyComponent={() => (
-          <View className="py-10 items-center bg-gray-50 rounded-xl border border-dashed border-gray-200">
-            <Text className="text-gray-400">No phones listed currently.</Text>
-          </View>
-        )}
-        // --- PRODUCT CARD (Grid Item) ---
-        renderItem={({ item }) => (
-          <View
-            style={{ width: COLUMN_WIDTH }}
-            className="bg-white rounded-2xl mb-4 border border-gray-100 overflow-hidden shadow-sm"
-          >
-            <Image
-              source={{ uri: item.images?.[0] }}
-              style={{ width: "100%", height: COLUMN_WIDTH }}
-              className="bg-gray-100"
-              resizeMode="cover"
-            />
-            <View className="p-3">
-              <Text
-                numberOfLines={1}
-                className="font-bold text-gray-900 text-sm mb-1"
-              >
-                {item.name}
-              </Text>
-              <Text className="font-black text-indigo-600">₹{item.price}</Text>
-            </View>
+          <View className="py-20 items-center opacity-50">
+            <Ionicons name="cube-outline" size={48} color="gray" />
+            <Text className="text-gray-400 mt-2 font-medium">No items in stock</Text>
           </View>
         )}
       />
-    </SafeAreaView>
+    </View>
   );
 }

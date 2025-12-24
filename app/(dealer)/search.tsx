@@ -1,21 +1,43 @@
 import { db } from "@/FirebaseConfig";
+import { useAuth } from "@/src/context/AuthContext";
 import { Ionicons } from "@expo/vector-icons";
-import { collection, getDocs, orderBy, query } from "firebase/firestore";
+import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from "expo-router";
+import { collection, getDocs, limit, orderBy, query } from "firebase/firestore";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
+  Dimensions,
   FlatList,
   Image,
   Keyboard,
+  Linking,
+  Pressable,
   StatusBar,
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
+import ImageView from "react-native-image-viewing";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+// --- DIMENSIONS ---
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+
+// Calculate card height (approx 75% of screen to fit nicely between header and tab bar)
+// You can adjust '220' to account for your specific Header + TabBar height
+const CARD_HEIGHT = SCREEN_HEIGHT - 220;
+const CARD_WIDTH = SCREEN_WIDTH - 32; // 16px padding on each side
+
 // --- TYPES ---
+interface ExtractedData {
+  brand?: string;
+  model?: string;
+  ramGb?: number;
+  storageGb?: number;
+}
+
 interface Product {
   id: string;
   name: string;
@@ -24,187 +46,268 @@ interface Product {
   description: string;
   images: string[];
   dealerName: string;
+  dealerAvatar?: string;
+  dealerPhone?: string;
+  userId?: string;
   city: string;
+  extractedData?: ExtractedData;
 }
 
+// --- PRODUCT CARD ---
+const ProductCard: React.FC<{ item: Product; router: any }> = ({
+  item,
+  router,
+}) => {
+  const [activeImageUri, setActiveImageUri] = useState(item.images?.[0]);
+  const [isViewerVisible, setIsViewerVisible] = useState(false);
+  const [currentViewerIndex, setCurrentViewerIndex] = useState(0);
+  const [expanded, setExpanded] = useState(false);
+
+  const viewerImages = (item.images || []).map((uri) => ({ uri }));
+
+  const openImageViewer = () => {
+    const index = item.images?.indexOf(activeImageUri || "") ?? 0;
+    setCurrentViewerIndex(index !== -1 ? index : 0);
+    setIsViewerVisible(true);
+  };
+
+  const openWhatsApp = () => {
+    const phoneNumber = item.dealerPhone || "919876543210";
+    const message = `Hi, I'm interested in the ${item.name} listed for ₹${item.price}.`;
+    const url = `whatsapp://send?text=${encodeURIComponent(message)}&phone=${phoneNumber}`;
+    Linking.openURL(url).catch(() => alert("Could not open WhatsApp"));
+  };
+
+  const { user } = useAuth();
+  const goToProfile = () => {
+    if (item.userId) {
+      if (item.userId === user?.uid) {
+        router.push(`/profile/`);
+      } else {
+        router.push(`/profile/${item.userId}`);
+      }
+    }
+  };
+
+  return (
+    // CARD CONTAINER (Fixed Height for Snapping)
+    <View
+      style={{
+        height: CARD_HEIGHT,
+        width: SCREEN_WIDTH,
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <View
+        style={{ width: CARD_WIDTH, height: "96%" }}
+        className="bg-white rounded-[32px] overflow-hidden relative shadow-lg border border-gray-100"
+      >
+        {/* 1. MAIN IMAGE */}
+        <Pressable onPress={openImageViewer} className="flex-1 bg-black">
+          <Image
+            source={{ uri: activeImageUri }}
+            className="w-full h-full"
+            resizeMode="cover"
+          />
+          <LinearGradient
+            colors={["transparent", "rgba(0,0,0,0.4)", "rgba(0,0,0,0.9)"]}
+            style={{
+              position: "absolute",
+              left: 0,
+              right: 0,
+              bottom: 0,
+              height: "50%",
+            }}
+          />
+        </Pressable>
+
+        {/* 2. DEALER BADGE (Floating Top Left) */}
+        <TouchableOpacity
+          onPress={goToProfile}
+          className="absolute top-4 left-4 flex-row items-center bg-black/40 px-3 py-1.5 rounded-full backdrop-blur-md border border-white/20"
+        >
+          <Image
+            source={{
+              uri:
+                item.dealerAvatar ||
+                `https://ui-avatars.com/api/?name=${item.dealerName}&background=random`,
+            }}
+            className="w-8 h-8 rounded-full border border-white/80"
+          />
+          <View className="ml-2">
+            <Text className="text-white font-bold text-xs shadow-black">
+              {item.dealerName}
+            </Text>
+            <Text className="text-gray-200 text-[10px] shadow-black">
+              {item.city}
+            </Text>
+          </View>
+        </TouchableOpacity>
+
+        {/* 3. BOTTOM INFO */}
+        <View className="absolute bottom-0 w-full px-5 pb-6">
+          <View className="flex-row items-end justify-between mb-2">
+            <View className="flex-1 mr-4">
+              <Text
+                numberOfLines={1}
+                className="text-white font-black text-2xl mb-1 shadow-md leading-tight"
+              >
+                {item.name}
+              </Text>
+              <Text className="text-yellow-400 font-bold text-xl shadow-md">
+                ₹{item.price}
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              onPress={openWhatsApp}
+              className="bg-white rounded-full h-12 w-12 items-center justify-center shadow-xl active:scale-95"
+            >
+              <Ionicons name="chatbubble" size={20} color="#4F46E5" />
+            </TouchableOpacity>
+          </View>
+
+          <Pressable onPress={() => setExpanded(!expanded)}>
+            <Text
+              numberOfLines={expanded ? undefined : 2}
+              className="text-gray-300 text-sm leading-5 font-medium"
+            >
+              {item.extractedData?.brand
+                ? `[${item.extractedData.brand} ${item.extractedData.model}] ${item.description}`
+                : item.description}
+            </Text>
+          </Pressable>
+        </View>
+      </View>
+
+      <ImageView
+        images={viewerImages}
+        imageIndex={currentViewerIndex}
+        visible={isViewerVisible}
+        onRequestClose={() => setIsViewerVisible(false)}
+      />
+    </View>
+  );
+};
+
+// --- MAIN SEARCH PAGE ---
 export default function SearchPage() {
-  // State
+  const router = useRouter();
+
   const [searchText, setSearchText] = useState("");
   const [results, setResults] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
-  const [hasSearched, setHasSearched] = useState(false); // To track if a search has been performed
+  const [hasSearched, setHasSearched] = useState(false);
 
-  // --- SEARCH LOGIC ---
   const handleSearch = async () => {
     if (!searchText.trim()) return;
-
-    Keyboard.dismiss(); // Hide keyboard
+    Keyboard.dismiss();
     setLoading(true);
     setHasSearched(true);
-    setResults([]); // Clear previous results
+    setResults([]);
 
     try {
-      // NOTE: Firestore does not support 'contains' queries natively.
-      // We fetch the list and filter in JS. This is efficient for < 1000 items.
-      const q = query(collection(db, "products"), orderBy("createdAt", "desc"));
+      const q = query(
+        collection(db, "products"),
+        orderBy("createdAt", "desc"),
+        limit(50)
+      );
       const querySnapshot = await getDocs(q);
-
+      const searchTerms = searchText
+        .toLowerCase()
+        .split(" ")
+        .filter((t) => t.length > 0);
       const filteredData: Product[] = [];
-      const lowerQuery = searchText.toLowerCase();
 
       querySnapshot.forEach((doc) => {
         const data = doc.data();
-        const name = data.name ? data.name.toLowerCase() : "";
-        const desc = data.description ? data.description.toLowerCase() : "";
-        const dealer = data.dealerName ? data.dealerName.toLowerCase() : "";
-        
-        // Search in Name, Description, or Dealer Name
-        if (name.includes(lowerQuery) || desc.includes(lowerQuery) || dealer.includes(lowerQuery)) {
-          filteredData.push({
-            id: doc.id,
-            name: data.name,
-            price: data.price,
-            tags: data.tags || ["Verified"],
-            description: data.description,
-            images: data.images || [],
-            dealerName: data.dealerName,
-            city: data.city,
-          });
+        const fullText =
+          `${data.name} ${data.description} ${data.dealerName} ${data.extractedData?.brand} ${data.extractedData?.model}`.toLowerCase();
+
+        if (searchTerms.every((term) => fullText.includes(term))) {
+          filteredData.push({ id: doc.id, ...data } as Product);
         }
       });
-
       setResults(filteredData);
-
     } catch (error) {
-      console.error("Search error:", error);
+      console.error(error);
     } finally {
       setLoading(false);
     }
   };
 
-  // --- RENDER ITEM ---
-  const renderItem = ({ item }: { item: Product }) => (
-    <View className="bg-white rounded-2xl mb-4 border border-gray-100 shadow-sm overflow-hidden flex-row">
-      {/* Thumbnail Image */}
-      <View className="w-28 h-28 bg-gray-200">
-        {item.images?.[0] ? (
-          <Image 
-            source={{ uri: item.images[0] }} 
-            className="w-full h-full" 
-            resizeMode="cover" 
-          />
-        ) : (
-          <View className="w-full h-full items-center justify-center">
-             <Ionicons name="image-outline" size={24} color="#9CA3AF" />
-          </View>
-        )}
-      </View>
-
-      {/* Details */}
-      <View className="flex-1 p-3 justify-between">
-         <View>
-            <View className="flex-row justify-between items-start">
-               <Text numberOfLines={2} className="text-gray-900 font-bold text-base flex-1 mr-2 leading-5">
-                 {item.name}
-               </Text>
-               <View className="bg-indigo-50 px-2 py-1 rounded">
-                  <Text className="text-indigo-600 font-bold text-xs">
-                    ₹{item.price}
-                  </Text>
-               </View>
-            </View>
-            <Text numberOfLines={1} className="text-gray-500 text-xs mt-1">
-               {item.description}
-            </Text>
-         </View>
-
-         <View className="flex-row items-center mt-2">
-            <Ionicons name="storefront-outline" size={12} color="#6B7280" />
-            <Text numberOfLines={1} className="text-gray-500 text-xs ml-1 flex-1 font-medium">
-               {item.dealerName}, {item.city}
-            </Text>
-         </View>
-      </View>
-    </View>
-  );
-
   return (
-    <SafeAreaView className="flex-1 bg-white">
+    <SafeAreaView className="flex-1 bg-white" edges={["top"]}>
       <StatusBar barStyle="dark-content" />
 
-      {/* --- HEADER & SEARCH BAR --- */}
-      <View className="px-5 py-2 border-b border-gray-100 pb-4">
-        <Text className="text-2xl font-black text-gray-900 mb-4 mt-2">Search</Text>
-        
-        <View className="flex-row items-center space-x-3">
-          <View className="flex-1 bg-gray-100 rounded-xl flex-row items-center px-4 py-3 border border-gray-200 focus:border-indigo-500">
-             <Ionicons name="search" size={20} color="#9CA3AF" />
-             <TextInput
-               className="flex-1 ml-3 text-gray-900 font-medium text-base"
-               placeholder="Search phones, models..."
-               placeholderTextColor="#9CA3AF"
-               returnKeyType="search"
-               value={searchText}
-               onChangeText={setSearchText}
-               onSubmitEditing={handleSearch} // Trigger search on keyboard 'Enter'
-             />
-             {searchText.length > 0 && (
-               <TouchableOpacity onPress={() => setSearchText("")}>
-                 <Ionicons name="close-circle" size={18} color="#9CA3AF" />
-               </TouchableOpacity>
-             )}
+      {/* HEADER */}
+      <View className="px-4 pb-2 border-b border-gray-100 z-10 bg-white">
+        <Text className="text-2xl font-black text-gray-900 mb-4 mt-2">
+          Search
+        </Text>
+        <View className="flex-row items-center space-x-2 mb-2">
+          <View className="flex-1 bg-gray-100 rounded-xl flex-row items-center px-4 py-3">
+            <Ionicons name="search" size={20} color="#9CA3AF" />
+            <TextInput
+              className="flex-1 ml-3 text-gray-900 font-medium text-base"
+              placeholder="iPhone 15, Samsung..."
+              placeholderTextColor="#9CA3AF"
+              returnKeyType="search"
+              value={searchText}
+              onChangeText={setSearchText}
+              onSubmitEditing={handleSearch}
+            />
+            {searchText.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchText("")}>
+                <Ionicons name="close-circle" size={18} color="#9CA3AF" />
+              </TouchableOpacity>
+            )}
           </View>
-          
-          {/* Search Button */}
-          <TouchableOpacity 
-             onPress={handleSearch}
-             className="bg-indigo-600 rounded-xl p-3.5 shadow-md active:bg-indigo-700"
+          <TouchableOpacity
+            onPress={handleSearch}
+            className="bg-indigo-600 rounded-xl p-3.5"
           >
-             <Ionicons name="arrow-forward" size={24} color="white" />
+            <Ionicons name="arrow-forward" size={24} color="white" />
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* --- RESULTS AREA --- */}
-      <View className="flex-1 bg-gray-50 px-5 pt-4">
-        
+      {/* RESULT LIST */}
+      <View className="flex-1 bg-gray-50">
         {loading ? (
-          <View className="mt-20 items-center">
-             <ActivityIndicator size="large" color="#4F46E5" />
-             <Text className="text-gray-400 mt-4 text-sm font-medium">Searching...</Text>
+          <View className="flex-1 justify-center items-center">
+            <ActivityIndicator size="large" color="#4F46E5" />
           </View>
         ) : !hasSearched ? (
-          // Initial State (No Search Yet)
-          <View className="mt-20 items-center opacity-40">
-             <Ionicons name="search-outline" size={80} color="#CBD5E1" />
-             <Text className="text-gray-400 mt-4 font-medium text-center px-10">
-               Enter a model name above and hit search to find results.
-             </Text>
+          <View className="flex-1 justify-center items-center opacity-40 pb-20">
+            <Ionicons name="search-outline" size={80} color="#CBD5E1" />
+            <Text className="text-gray-400 mt-4 font-medium">
+              Type to search inventory
+            </Text>
           </View>
         ) : results.length === 0 ? (
-          // No Results Found
-          <View className="mt-20 items-center">
-             <View className="w-20 h-20 bg-gray-200 rounded-full items-center justify-center mb-4">
-                <Ionicons name="alert-outline" size={40} color="#64748B" />
-             </View>
-             <Text className="text-gray-900 font-bold text-lg">No Results Found</Text>
-             <Text className="text-gray-500 text-center mt-1 px-8">
-               We couldn't find anything matching "{searchText}". Try a different keyword.
-             </Text>
+          <View className="flex-1 justify-center items-center pb-20">
+            <Ionicons name="alert-outline" size={50} color="#64748B" />
+            <Text className="text-gray-900 font-bold text-lg mt-4">
+              No Results Found
+            </Text>
           </View>
         ) : (
-          // Results List
           <FlatList
             data={results}
             keyExtractor={(item) => item.id}
-            renderItem={renderItem}
+            renderItem={({ item }) => (
+              <ProductCard item={item} router={router} />
+            )}
+            // --- REELS-STYLE SNAPPING MAGIC ---
+            snapToInterval={CARD_HEIGHT} // Snap exactly to the card height
+            snapToAlignment="start" // Align top of card to top of list container
+            decelerationRate="fast" // Stop scrolling quickly
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ paddingBottom: 40 }}
-            ListHeaderComponent={
-               <Text className="text-gray-500 text-xs font-bold uppercase mb-4 ml-1">
-                  Found {results.length} result{results.length !== 1 ? 's' : ''}
-               </Text>
-            }
+            contentContainerStyle={{
+              paddingBottom: 20, // Extra padding at bottom so last card lifts up
+            }}
           />
         )}
       </View>

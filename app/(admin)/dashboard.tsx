@@ -224,7 +224,7 @@ export default function AdminDashboard() {
 
               if (action === "approve") {
                   await setDoc(userRef, { 
-                    status: "active",
+                    onboardingStatus: "approved",
                     role: "dealer",
                     displayName: request.displayName || "",
                     email: request.email || "",
@@ -233,7 +233,7 @@ export default function AdminDashboard() {
                     createdAt: request.createdAt || Date.now()
                   }, { merge: true });
               } else {
-                  await setDoc(userRef, { status: "rejected", role: "user" }, { merge: true });
+                  await setDoc(userRef, { onboardingStatus: "rejected", role: "user" }, { merge: true });
               }
 
               await deleteDoc(doc(db, "pending-request", request.id));
@@ -242,7 +242,7 @@ export default function AdminDashboard() {
               setStats(prev => ({ ...prev, pending: prev.pending - 1 }));
               
               if (action === "approve") {
-                 const newUser = { ...request, id: targetUserId, status: "active", role: "dealer" };
+                 const newUser = { ...request, id: targetUserId, onboardingStatus: "approved", role: "dealer" };
                  setDealers(prev => [newUser, ...prev]);
               }
 

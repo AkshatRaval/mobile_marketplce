@@ -1,6 +1,7 @@
 import { db } from "@/FirebaseConfig";
 import { useAuth } from "@/src/context/AuthContext";
 import { Ionicons } from "@expo/vector-icons";
+import Constants from "expo-constants";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import {
@@ -27,9 +28,19 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 // --- CLOUDINARY CONFIG ---
-const CLOUD_NAME = "dx90g9xvc";
+
+// Get the IP address of your computer dynamically
+const debuggerHost = Constants.expoConfig?.hostUri || Constants.manifest?.debuggerHost;
+const localhost = debuggerHost?.split(":")[0] || "localhost";
+
+// Now use this dynamic URL
+
+const CLOUD_NAME = process.env.EXPO_PUBLIC_CLOUDINARY_NAME;
 const UPLOAD_PRESET = "phone_images";
 const CLOUDINARY_URL = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`;
+
+// --- EXTRACTION API CONFIG ---
+const EXTRACTION_API_URL = `http://${localhost}:8000/extract`;
 
 export default function Inventory() {
   const { user, userDoc } = useAuth();
@@ -114,6 +125,34 @@ export default function Inventory() {
     }
   };
 
+  // --- EXTRACTION API FUNCTION ---
+  const extractProductData = async (text: string) => {
+  console.log("Attempting to connect to:", EXTRACTION_API_URL); // Check your console!
+  try {
+    // Create a timeout promise that fails after 5 seconds
+    const timeout = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error("Request Timed Out")), 5000)
+    );
+
+    const request = fetch(EXTRACTION_API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    });
+
+    // Race the fetch against the timeout
+    const response: any = await Promise.race([request, timeout]);
+
+    if (!response.ok) throw new Error("Server Error");
+    return await response.json();
+
+  } catch (error) {
+    console.error("Extraction Failed:", error);
+    Alert.alert("Connection Error", "Is the backend server running?");
+    return null;
+  }
+};
+
   // --- MAIN POST LOGIC ---
   const handlePost = async () => {
     if (!user?.uid) {
@@ -142,8 +181,11 @@ export default function Inventory() {
         images.map((uri) => uploadToCloudinary(uri))
       );
 
-      // 2. Save metadata to Firestore (Products Collection)
-      const newProductRef = await addDoc(collection(db, "products"), {
+      // 2. Extract structured data from product name
+      const extractedData = await extractProductData(name + " " + description +" " + price);
+
+      // 3. Save metadata to Firestore (Products Collection)
+      const productData: any = {
         userId: user.uid,
         dealerName: userDoc?.displayName || "Unknown Dealer",
         shopName: userDoc?.shopName || "Unknown Shop",
@@ -155,9 +197,20 @@ export default function Inventory() {
         images: imageUrls,
         createdAt: Date.now(),
         status: "active",
-      });
+        rawText: extractedData.raw_text,
+        brand: extractedData.brand,
+        model: extractedData.model,
+        ramGb: extractedData.ram_gb,
+        storageGb: extractedData.storage_gb,
+        batteryPercent: extractedData.battery_percent,
+        conditionPercent: extractedData.condition_percent,
+        extractedPrice: extractedData.price,
+      };
 
-      // 3. Update User's Profile with the new Listing ID
+
+      const newProductRef = await addDoc(collection(db, "products"), productData);
+
+      // 4. Update User's Profile with the new Listing ID
       const userRef = doc(db, "users", user.uid);
       await updateDoc(userRef, {
         listings: arrayUnion({
