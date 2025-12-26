@@ -10,6 +10,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  onSnapshot,
   query,
   where,
   writeBatch
@@ -27,6 +28,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import ImageView from "react-native-image-viewing";
 
 // --- DIMENSIONS ---
 const { width } = Dimensions.get("window");
@@ -34,54 +36,79 @@ const COLUMN_WIDTH = (width - 48) / 2;
 
 export default function PublicDealerProfile() {
   const { id } = useLocalSearchParams();
-  const { user, userDoc } = useAuth(); // Get userDoc to check current status
+  const { user } = useAuth();
   const router = useRouter();
-
-  // Redirect if viewing own profile
-  useEffect(() => {
-    if (id === user?.uid) router.replace("/profile");
-  }, [id]);
 
   const [dealerData, setDealerData] = useState<any>(null);
   const [inventory, setInventory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // STATUS STATE
   const [requestStatus, setRequestStatus] = useState<"none" | "pending" | "connected">("none");
   const [processing, setProcessing] = useState(false);
 
-  // --- FETCH DATA ---
+  // IMAGE VIEWER
+  const [isViewerVisible, setIsViewerVisible] = useState(false);
+  const [activeProduct, setActiveProduct] = useState<any>(null);
+
+  // Redirect if viewing own profile
   useEffect(() => {
-    const fetchData = async () => {
+    if (user && id === user.uid) router.replace("/profile");
+  }, [id, user]);
+
+  // --- 1. REAL-TIME LISTENER (FIXED FIELD NAMES) ---
+  useEffect(() => {
+    if (!user?.uid || !id) return;
+    
+    // Safety check for ID
+    const dealerIdString = Array.isArray(id) ? id[0] : id;
+
+    // Listen to MY user document
+    const unsub = onSnapshot(doc(db, "users", user.uid), (docSnapshot) => {
+      if (!docSnapshot.exists()) return;
+      
+      const myData = docSnapshot.data();
+
+      // Get arrays (Default to empty if missing)
+      const myConnections = myData.connections || [];
+      const mySentRequests = myData.requestSent || []; // CHANGED from 'outgoingRequests'
+
+      // Check Logic
+      if (myConnections.includes(dealerIdString)) {
+        setRequestStatus("connected");
+      } else if (mySentRequests.includes(dealerIdString)) {
+        setRequestStatus("pending");
+      } else {
+        setRequestStatus("none");
+      }
+    });
+
+    return () => unsub();
+  }, [user, id]);
+
+  // --- 2. FETCH DEALER DATA ---
+  useEffect(() => {
+    const fetchDealerData = async () => {
       try {
         if (!id) return;
         const dealerId = Array.isArray(id) ? id[0] : id;
 
-        // 1. Dealer Profile
+        // Dealer Profile
         const userSnap = await getDoc(doc(db, "users", dealerId));
         if (userSnap.exists()) setDealerData(userSnap.data());
 
-        // 2. Inventory
+        // Inventory
         const q = query(collection(db, "products"), where("userId", "==", dealerId));
         const productsSnap = await getDocs(q);
         setInventory(productsSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
-        
-        // 3. Check Connection Status
-        if (userDoc) {
-          if (userDoc.connections?.includes(dealerId)) {
-            setRequestStatus("connected");
-          } else if (userDoc.outgoingRequests?.includes(dealerId)) {
-            setRequestStatus("pending");
-          } else {
-            setRequestStatus("none");
-          }
-        }
       } catch (error) {
         console.error("Error loading profile:", error);
       } finally {
         setLoading(false);
       }
     };
-    fetchData();
-  }, [id, userDoc]); // Re-run if userDoc updates
+    fetchDealerData();
+  }, [id]);
 
   // --- ACTIONS ---
   const openWhatsApp = () => {
@@ -89,6 +116,12 @@ export default function PublicDealerProfile() {
     Linking.openURL(`whatsapp://send?phone=${dealerData.phoneNumber}`).catch(() =>
       Alert.alert("Error", "Could not open WhatsApp")
     );
+  };
+  
+  const openProductWhatsApp = (product: any) => {
+    if (!dealerData?.phoneNumber) return Alert.alert("No Info", "Number not available.");
+    const text = `Hi, I am interested in the ${product.name} listed for ₹${product.price}`;
+    Linking.openURL(`whatsapp://send?phone=${dealerData.phoneNumber}&text=${encodeURIComponent(text)}`);
   };
 
   const handleConnect = async () => {
@@ -103,31 +136,27 @@ export default function PublicDealerProfile() {
 
       if (requestStatus === "none") {
         // --- SEND REQUEST ---
-        // 1. Add to MY 'outgoingRequests'
+        // 1. Add to MY 'requestSent'
         batch.update(myRef, {
-          outgoingRequests: arrayUnion(dealerId)
+          requestSent: arrayUnion(dealerId) // CHANGED
         });
-        // 2. Add to THEIR 'pendingRequests' (This triggers their notification)
+        // 2. Add to THEIR 'requestReceived'
         batch.update(dealerRef, {
-          pendingRequests: arrayUnion(auth.currentUser.uid)
+          requestReceived: arrayUnion(auth.currentUser.uid) // CHANGED
         });
         
         await batch.commit();
-        setRequestStatus("pending");
-        Alert.alert("Request Sent", "Waiting for approval.");
 
       } else if (requestStatus === "pending") {
         // --- CANCEL REQUEST ---
         batch.update(myRef, {
-          outgoingRequests: arrayRemove(dealerId)
+          requestSent: arrayRemove(dealerId) // CHANGED
         });
         batch.update(dealerRef, {
-          pendingRequests: arrayRemove(auth.currentUser.uid)
+          requestReceived: arrayRemove(auth.currentUser.uid) // CHANGED
         });
 
         await batch.commit();
-        setRequestStatus("none");
-        Alert.alert("Cancelled", "Request withdrawn.");
       }
 
     } catch (error) {
@@ -136,6 +165,11 @@ export default function PublicDealerProfile() {
     } finally {
       setProcessing(false);
     }
+  };
+
+  const onProductPress = (item: any) => {
+    setActiveProduct(item);
+    setIsViewerVisible(true);
   };
 
   if (loading) {
@@ -151,7 +185,6 @@ export default function PublicDealerProfile() {
   // --- RENDER HEADER ---
   const renderHeader = () => (
     <View className="mb-6">
-      {/* 1. COVER IMAGE */}
       <View className="h-40 w-full overflow-hidden">
         <LinearGradient
           colors={["#4F46E5", "#818CF8"]}
@@ -163,12 +196,9 @@ export default function PublicDealerProfile() {
         <View className="absolute top-10 -left-10 w-24 h-24 bg-white/10 rounded-full blur-xl" />
       </View>
 
-      {/* 2. PROFILE CARD */}
       <View className="mx-5 -mt-16 bg-white rounded-3xl p-5 shadow-lg shadow-indigo-100 border border-gray-50 items-center">
         <Image
-          source={{
-            uri: dealerData.photoURL || `https://ui-avatars.com/api/?name=${dealerData.displayName}&background=random&size=200`,
-          }}
+          source={{ uri: dealerData.photoURL || `https://ui-avatars.com/api/?name=${dealerData.displayName}` }}
           className="w-24 h-24 rounded-full border-4 border-white -mt-16 mb-3 bg-gray-200"
         />
 
@@ -205,7 +235,7 @@ export default function PublicDealerProfile() {
         <View className="flex-row gap-3 w-full">
           <TouchableOpacity
             onPress={openWhatsApp}
-            className="flex-1 bg-green-500 py-3.5 rounded-xl flex-row justify-center items-center shadow-sm active:opacity-90"
+            className="flex-1 bg-green-500 py-3.5 rounded-xl flex-row justify-center items-center shadow-sm"
           >
             <Ionicons name="logo-whatsapp" size={18} color="white" style={{ marginRight: 6 }} />
             <Text className="text-white font-bold text-sm">WhatsApp</Text>
@@ -244,7 +274,7 @@ export default function PublicDealerProfile() {
       </View>
 
       <Text className="px-6 mt-4 text-lg font-black text-gray-900">
-        Inventory <Text className="text-gray-400 font-medium text-sm">({inventory.length})</Text>
+        Inventory ({inventory.length})
       </Text>
     </View>
   );
@@ -252,7 +282,7 @@ export default function PublicDealerProfile() {
   const renderProduct = ({ item }: { item: any }) => (
     <TouchableOpacity
       activeOpacity={0.9}
-      onPress={() => console.log("Product clicked")} // Navigate to details if needed
+      onPress={() => onProductPress(item)}
       style={{ width: COLUMN_WIDTH }}
       className="bg-white rounded-2xl mb-4 shadow-sm shadow-gray-200 border border-gray-100 overflow-hidden"
     >
@@ -267,25 +297,37 @@ export default function PublicDealerProfile() {
         <Text numberOfLines={1} className="font-bold text-gray-900 text-sm mb-1 leading-5">
           {item.name}
         </Text>
-        <Text numberOfLines={1} className="text-gray-400 text-xs mb-3">
-          {item.extractedData?.brand || "Phone"} • {item.extractedData?.storageGb ? `${item.extractedData.storageGb}GB` : "Mint"}
+        <Text numberOfLines={1} className="text-gray-400 text-xs mb-2">
+          {item.extractedData?.storageGb ? `${item.extractedData.storageGb}GB` : "Mint Condition"}
         </Text>
-        
-        <View className="flex-row items-center justify-between">
-            <View className="bg-indigo-50 px-2 py-1 rounded-md">
-                <Text className="text-[10px] font-bold text-indigo-600 uppercase">View</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={14} color="#CBD5E1" />
-        </View>
+        <Text className="text-indigo-600 text-xs font-bold">View Image</Text>
       </View>
     </TouchableOpacity>
+  );
+
+  // Viewer Footer
+  const ViewerFooter = () => (
+    <View className="w-full bg-black/80 p-6 items-center pb-10">
+      <Text className="text-white font-bold text-lg mb-1">{activeProduct?.name}</Text>
+      <Text className="text-gray-300 mb-4">₹{activeProduct?.price}</Text>
+      <TouchableOpacity 
+        onPress={() => {
+          setIsViewerVisible(false);
+          openProductWhatsApp(activeProduct);
+        }}
+        className="bg-green-500 w-full py-3 rounded-full flex-row justify-center items-center"
+      >
+        <Ionicons name="logo-whatsapp" size={20} color="white" style={{marginRight: 8}} />
+        <Text className="text-white font-bold">Chat about this phone</Text>
+      </TouchableOpacity>
+    </View>
   );
 
   return (
     <View className="flex-1 bg-gray-50">
       <StatusBar barStyle="light-content" />
 
-      {/* FIXED BACK BUTTON */}
+      {/* Back Button */}
       <View className="absolute top-12 left-5 z-20">
         <TouchableOpacity
           onPress={() => router.back()}
@@ -311,6 +353,17 @@ export default function PublicDealerProfile() {
           </View>
         )}
       />
+
+      {/* Full Screen Image Viewer */}
+      {activeProduct && (
+        <ImageView
+          images={activeProduct.images.map((uri: string) => ({ uri }))}
+          imageIndex={0}
+          visible={isViewerVisible}
+          onRequestClose={() => setIsViewerVisible(false)}
+          FooterComponent={ViewerFooter}
+        />
+      )}
     </View>
   );
 }

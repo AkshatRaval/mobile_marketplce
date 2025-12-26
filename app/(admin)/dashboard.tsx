@@ -233,7 +233,7 @@ export default function AdminDashboard() {
                     createdAt: request.createdAt || Date.now()
                   }, { merge: true });
               } else {
-                  await setDoc(userRef, { onboardingStatus: "rejected", role: "user" }, { merge: true });
+                  await setDoc(userRef, { status: "rejected", role: "user" }, { merge: true });
               }
 
               await deleteDoc(doc(db, "pending-request", request.id));

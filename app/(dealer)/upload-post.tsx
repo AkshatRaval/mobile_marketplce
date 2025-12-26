@@ -9,7 +9,7 @@ import {
   arrayUnion,
   collection,
   doc,
-  updateDoc
+  updateDoc,
 } from "firebase/firestore";
 import React, { useState } from "react";
 import {
@@ -25,258 +25,164 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 
-// --- CLOUDINARY CONFIG ---
-
-// Get the IP address of your computer dynamically
-const debuggerHost = Constants.expoConfig?.hostUri || Constants.manifest?.debuggerHost;
+/* ===============================
+   CONFIG
+================================ */
+const debuggerHost =
+  Constants.expoConfig?.hostUri || Constants.manifest?.debuggerHost;
 const localhost = debuggerHost?.split(":")[0] || "localhost";
-
-// Now use this dynamic URL
 
 const CLOUD_NAME = process.env.EXPO_PUBLIC_CLOUDINARY_NAME;
 const UPLOAD_PRESET = "phone_images";
 const CLOUDINARY_URL = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`;
-
-// --- EXTRACTION API CONFIG ---
 const EXTRACTION_API_URL = `http://${localhost}:8000/extract`;
 
 export default function Inventory() {
   const { user, userDoc } = useAuth();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
-  // --- STATE ---
   const [images, setImages] = useState<string[]>([]);
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
   const [description, setDescription] = useState("");
   const [uploading, setUploading] = useState(false);
 
-  // --- HELPERS ---
-
-  const getWordCount = (text: string) => {
-    return text
-      .trim()
-      .split(/\s+/)
-      .filter((w) => w.length > 0).length;
-  };
-
-  const handleNameChange = (text: string) => {
-    if (getWordCount(text) <= 25) {
-      setName(text);
-    }
-  };
+  /* ===============================
+     HELPERS
+  ================================ */
+  const getWordCount = (text: string) =>
+    text.trim().split(/\s+/).filter(Boolean).length;
 
   const pickImage = async () => {
     if (images.length >= 4) {
-      Alert.alert("Limit Reached", "You can only upload up to 4 images.");
+      Alert.alert("Limit Reached", "Max 4 images allowed.");
       return;
     }
 
-    // --- UPDATED CONFIGURATION ---
-    let result = await ImagePicker.launchImageLibraryAsync({
+    const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
-      quality: 0.5,
-      base64: true,
+      quality: 0.6,
     });
 
     if (!result.canceled) {
-      setImages([...images, result.assets[0].uri]);
+      setImages((prev) => [...prev, result.assets[0].uri]);
     }
   };
 
   const removeImage = (index: number) => {
-    const newImages = [...images];
-    newImages.splice(index, 1);
-    setImages(newImages);
+    setImages((prev) => prev.filter((_, i) => i !== index));
   };
 
-  // --- CLOUDINARY UPLOAD FUNCTION ---
   const uploadToCloudinary = async (uri: string) => {
     const formData = new FormData();
+    const filename = uri.split("/").pop() || "image.jpg";
 
-    const filename = uri.split("/").pop();
-    const match = /\.(\w+)$/.exec(filename || "");
-    const type = match ? `image/${match[1]}` : `image/jpeg`;
-
-    // @ts-ignore: React Native FormData expects this shape
-    formData.append("file", { uri, name: filename, type });
+    // @ts-ignore
+    formData.append("file", {
+      uri,
+      name: filename,
+      type: "image/jpeg",
+    });
     formData.append("upload_preset", UPLOAD_PRESET);
-    formData.append("folder", "dealer_app_products");
 
-    try {
-      const response = await fetch(CLOUDINARY_URL, {
-        method: "POST",
-        body: formData,
-      });
-
-      const data = await response.json();
-
-      if (data.secure_url) {
-        return data.secure_url;
-      } else {
-        throw new Error("Cloudinary upload failed");
-      }
-    } catch (error) {
-      console.error("Upload Error:", error);
-      throw error;
-    }
-  };
-
-  // --- EXTRACTION API FUNCTION ---
-  const extractProductData = async (text: string) => {
-  console.log("Attempting to connect to:", EXTRACTION_API_URL); // Check your console!
-  try {
-    // Create a timeout promise that fails after 5 seconds
-    const timeout = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error("Request Timed Out")), 5000)
-    );
-
-    const request = fetch(EXTRACTION_API_URL, {
+    const res = await fetch(CLOUDINARY_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text }),
+      body: formData,
     });
 
-    // Race the fetch against the timeout
-    const response: any = await Promise.race([request, timeout]);
+    const data = await res.json();
+    if (!data.secure_url) throw new Error("Upload failed");
+    return data.secure_url;
+  };
 
-    if (!response.ok) throw new Error("Server Error");
-    return await response.json();
-
-  } catch (error) {
-    console.error("Extraction Failed:", error);
-    Alert.alert("Connection Error", "Is the backend server running?");
-    return null;
-  }
-};
-
-  // --- MAIN POST LOGIC ---
   const handlePost = async () => {
-    if (!user?.uid) {
-      Alert.alert("Error", "You must be logged in.");
-      return;
-    }
+    if (!user?.uid) return;
 
     if (!name || !price || !description || images.length === 0) {
-      Alert.alert(
-        "Missing Details",
-        "Please fill all fields and add at least 1 image."
-      );
-      return;
-    }
-
-    if (getWordCount(name) > 25) {
-      Alert.alert("Title too long", "Please keep the name under 25 words.");
+      Alert.alert("Missing info", "Fill all fields.");
       return;
     }
 
     setUploading(true);
-
     try {
-      // 1. Upload all images to Cloudinary concurrently
       const imageUrls = await Promise.all(
-        images.map((uri) => uploadToCloudinary(uri))
+        images.map(uploadToCloudinary)
       );
 
-      // 2. Extract structured data from product name
-      const extractedData = await extractProductData(name + " " + description +" " + price);
-
-      // 3. Save metadata to Firestore (Products Collection)
-      const productData: any = {
+      const docRef = await addDoc(collection(db, "products"), {
         userId: user.uid,
-        dealerName: userDoc?.displayName || "Unknown Dealer",
-        shopName: userDoc?.shopName || "Unknown Shop",
-        city: userDoc?.city || "N/A",
-        name: name,
-        nameWordCount: getWordCount(name),
-        price: price,
-        description: description,
+        dealerName: userDoc?.displayName,
+        city: userDoc?.city,
+        name,
+        price,
+        description,
         images: imageUrls,
         createdAt: Date.now(),
-        status: "active",
-        rawText: extractedData.raw_text,
-        brand: extractedData.brand,
-        model: extractedData.model,
-        ramGb: extractedData.ram_gb,
-        storageGb: extractedData.storage_gb,
-        batteryPercent: extractedData.battery_percent,
-        conditionPercent: extractedData.condition_percent,
-        extractedPrice: extractedData.price,
-      };
+      });
 
-
-      const newProductRef = await addDoc(collection(db, "products"), productData);
-
-      // 4. Update User's Profile with the new Listing ID
-      const userRef = doc(db, "users", user.uid);
-      await updateDoc(userRef, {
+      await updateDoc(doc(db, "users", user.uid), {
         listings: arrayUnion({
-          id: newProductRef.id,
-          name: name,
-          price: price,
-          image: imageUrls[0], 
+          id: docRef.id,
+          name,
+          price,
+          image: imageUrls[0],
         }),
       });
 
-      Alert.alert("Success", "Product listed successfully!");
-
-      // Reset
-      setName("");
-      setPrice("");
-      setDescription("");
-      setImages([]);
-      router.push("/");
-    } catch (error: any) {
-      console.error(error);
-      Alert.alert(
-        "Error",
-        "Could not upload listing. Please check your internet connection."
-      );
+      Alert.alert("Success", "Listing added");
+      router.back();
+    } catch (e) {
+      Alert.alert("Error", "Upload failed");
     } finally {
       setUploading(false);
     }
   };
 
+  /* ===============================
+     UI
+  ================================ */
   return (
-    <SafeAreaView className="flex-1 bg-white">
+    <SafeAreaView
+      edges={["top", "bottom"]}
+      style={{ flex: 1, backgroundColor: "#fff" }}
+    >
       <StatusBar barStyle="dark-content" />
 
-      {/* Header */}
+      {/* HEADER */}
       <View className="px-6 py-4 border-b border-gray-100">
-        <Text className="text-2xl font-black text-gray-900">Add New Item</Text>
+        <Text className="text-2xl font-black">Add New Item</Text>
       </View>
 
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        className="flex-1"
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <ScrollView
-          className="flex-1 px-6 pt-6"
+          contentContainerStyle={{
+            padding: 24,
+            paddingBottom: 120 + insets.bottom,
+          }}
+          keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* Images */}
-          <Text className="text-gray-700 font-bold mb-3">
-            Product Images (Max 4)
-          </Text>
+          {/* IMAGES */}
+          <Text className="font-bold mb-3">Product Images</Text>
           <View className="flex-row flex-wrap gap-3 mb-6">
-            {images.map((uri, index) => (
-              <View
-                key={index}
-                className="relative w-20 h-20 rounded-xl overflow-hidden shadow-sm"
-              >
-                <Image
-                  source={{ uri }}
-                  className="w-full h-full"
-                  resizeMode="cover"
-                />
+            {images.map((uri, i) => (
+              <View key={i} className="relative w-20 h-20 rounded-xl overflow-hidden">
+                <Image source={{ uri }} className="w-full h-full" />
                 <TouchableOpacity
-                  onPress={() => removeImage(index)}
-                  className="absolute top-1 right-1 bg-black/50 rounded-full p-1"
+                  onPress={() => removeImage(i)}
+                  className="absolute top-1 right-1 bg-black/60 p-1 rounded-full"
                 >
-                  <Ionicons name="close" size={12} color="white" />
+                  <Ionicons name="close" size={12} color="#fff" />
                 </TouchableOpacity>
               </View>
             ))}
@@ -284,83 +190,61 @@ export default function Inventory() {
             {images.length < 4 && (
               <TouchableOpacity
                 onPress={pickImage}
-                className="w-20 h-20 bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl items-center justify-center"
+                className="w-20 h-20 border-2 border-dashed border-gray-300 rounded-xl items-center justify-center"
               >
-                <Ionicons name="camera-outline" size={24} color="#9CA3AF" />
-                <Text className="text-[10px] text-gray-400 font-bold mt-1">
-                  ADD
-                </Text>
+                <Ionicons name="camera-outline" size={22} color="#999" />
               </TouchableOpacity>
             )}
           </View>
 
-          {/* Name */}
-          <View className="mb-5">
-            <View className="flex-row justify-between mb-2 ml-1">
-              <Text className="text-gray-700 font-bold">Product Name</Text>
-              <Text
-                className={`text-xs font-bold ${getWordCount(name) >= 25 ? "text-red-500" : "text-gray-400"}`}
-              >
-                {getWordCount(name)}/25 words
-              </Text>
-            </View>
-            <TextInput
-              value={name}
-              onChangeText={handleNameChange}
-              placeholder="Ex. iPhone 15 Pro Max 256GB"
-              className="bg-gray-50 border border-gray-200 p-4 rounded-xl text-gray-900 font-medium"
-            />
-          </View>
+          {/* NAME */}
+          <TextInput
+            value={name}
+            onChangeText={setName}
+            placeholder="Product name"
+            className="bg-gray-50 border p-4 rounded-xl mb-4"
+          />
 
-          {/* Price */}
-          <View className="mb-5">
-            <Text className="text-gray-700 font-bold mb-2 ml-1">Price</Text>
-            <TextInput
-              value={price}
-              onChangeText={setPrice}
-              placeholder="₹ 0.00"
-              keyboardType="numeric"
-              className="bg-gray-50 border border-gray-200 p-4 rounded-xl text-gray-900 font-medium"
-            />
-          </View>
+          {/* PRICE */}
+          <TextInput
+            value={price}
+            onChangeText={setPrice}
+            placeholder="Price"
+            keyboardType="numeric"
+            className="bg-gray-50 border p-4 rounded-xl mb-4"
+          />
 
-          {/* Description */}
-          <View className="mb-8">
-            <Text className="text-gray-700 font-bold mb-2 ml-1">
-              Details / Specs
-            </Text>
-            <TextInput
-              value={description}
-              onChangeText={setDescription}
-              multiline
-              numberOfLines={6}
-              textAlignVertical="top"
-              placeholder="Ex. 8GB RAM, 256GB Storage, Battery Health 90%..."
-              className="bg-gray-50 border border-gray-200 p-4 rounded-xl text-gray-900 h-32 pt-4"
-            />
-          </View>
-
-          <View className="h-20" />
+          {/* DESCRIPTION */}
+          <TextInput
+            value={description}
+            onChangeText={setDescription}
+            placeholder="Details"
+            multiline
+            className="bg-gray-50 border p-4 rounded-xl h-32"
+          />
         </ScrollView>
 
-        {/* Submit */}
-        <View className="p-6 bg-white border-t border-gray-100">
+        {/* FIXED FOOTER */}
+        <View
+          style={{
+            padding: 16,
+            paddingBottom: 16 + insets.bottom,
+            borderTopWidth: 1,
+            borderColor: "#eee",
+            backgroundColor: "#fff",
+          }}
+        >
           <TouchableOpacity
             onPress={handlePost}
             disabled={uploading}
-            className={`w-full py-4 rounded-xl shadow-lg flex-row justify-center items-center ${
-              uploading ? "bg-indigo-400" : "bg-indigo-600"
-            }`}
+            className="bg-indigo-600 py-4 rounded-xl items-center"
           >
             {uploading ? (
-              <ActivityIndicator color="white" />
+              <ActivityIndicator color="#fff" />
             ) : (
-              <>
-                <Text className="text-white font-bold text-lg mr-2">
-                  Post Listing
-                </Text>
-                <Ionicons name="arrow-up-circle" size={24} color="white" />
-              </>
+              <Text className="text-white font-bold text-lg">
+                Post Listing
+              </Text>
             )}
           </TouchableOpacity>
         </View>

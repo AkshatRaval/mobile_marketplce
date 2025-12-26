@@ -13,10 +13,9 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-
 
 export default function Signup() {
   const router = useRouter();
@@ -51,6 +50,9 @@ export default function Signup() {
         shopName: shopName,
         phone: phone, // Good to have phone here too
         role: "dealer",
+        connections: [], 
+        requestSent: [],
+        requestReceived: [],
         onboardingStatus: "submitted",
         createdAt: Date.now(),
       });
@@ -62,18 +64,19 @@ export default function Signup() {
         shopName: shopName, // Admin usually needs to know the shop name
         phone: phone,
         status: "pending",
-        requestDate: Date.now()
+        requestDate: Date.now(),
       });
 
       // 5. Navigate
       router.replace("/onboarding");
-
     } catch (error: any) {
       // 6. meaningful Error Handling
 
       let msg = error.message;
-      if (msg.includes("email-already-in-use")) msg = "This email is already registered.";
-      if (msg.includes("weak-password")) msg = "Password should be at least 6 characters.";
+      if (msg.includes("email-already-in-use"))
+        msg = "This email is already registered.";
+      if (msg.includes("weak-password"))
+        msg = "Password should be at least 6 characters.";
       Alert.alert("Registration Failed", msg);
     } finally {
       setLoading(false);
@@ -83,17 +86,16 @@ export default function Signup() {
   return (
     <SafeAreaView className="flex-1 bg-white">
       <StatusBar barStyle="dark-content" />
-      
+
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         className="flex-1"
       >
-        <ScrollView 
-          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
+        <ScrollView
+          contentContainerStyle={{ flexGrow: 1, justifyContent: "center" }}
           showsVerticalScrollIndicator={false}
           className="px-6 py-4"
         >
-          
           {/* Header Section */}
           <View className="mb-8">
             <Text className="text-3xl font-bold text-gray-900 mb-2">
@@ -106,9 +108,10 @@ export default function Signup() {
 
           {/* Form Section */}
           <View className="space-y-4">
-            
             <View>
-              <Text className="text-gray-700 font-medium mb-1 ml-1">Full Name</Text>
+              <Text className="text-gray-700 font-medium mb-1 ml-1">
+                Full Name
+              </Text>
               <TextInput
                 className="w-full bg-gray-50 border border-gray-200 rounded-xl p-4 text-gray-700 focus:border-indigo-500"
                 placeholder="Ex. John Doe"
@@ -119,7 +122,9 @@ export default function Signup() {
             </View>
 
             <View>
-              <Text className="text-gray-700 font-medium mb-1 ml-1">Shop Name</Text>
+              <Text className="text-gray-700 font-medium mb-1 ml-1">
+                Shop Name
+              </Text>
               <TextInput
                 className="w-full bg-gray-50 border border-gray-200 rounded-xl p-4 text-gray-700 focus:border-indigo-500"
                 placeholder="Ex. City Motors"
@@ -130,7 +135,9 @@ export default function Signup() {
             </View>
 
             <View>
-              <Text className="text-gray-700 font-medium mb-1 ml-1">Phone Number</Text>
+              <Text className="text-gray-700 font-medium mb-1 ml-1">
+                Phone Number
+              </Text>
               <TextInput
                 className="w-full bg-gray-50 border border-gray-200 rounded-xl p-4 text-gray-700 focus:border-indigo-500"
                 placeholder="Ex. 9876543210"
@@ -142,7 +149,9 @@ export default function Signup() {
             </View>
 
             <View>
-              <Text className="text-gray-700 font-medium mb-1 ml-1">Email Address</Text>
+              <Text className="text-gray-700 font-medium mb-1 ml-1">
+                Email Address
+              </Text>
               <TextInput
                 className="w-full bg-gray-50 border border-gray-200 rounded-xl p-4 text-gray-700 focus:border-indigo-500"
                 placeholder="john@example.com"
@@ -155,7 +164,9 @@ export default function Signup() {
             </View>
 
             <View>
-              <Text className="text-gray-700 font-medium mb-1 ml-1">Password</Text>
+              <Text className="text-gray-700 font-medium mb-1 ml-1">
+                Password
+              </Text>
               <TextInput
                 className="w-full bg-gray-50 border border-gray-200 rounded-xl p-4 text-gray-700 focus:border-indigo-500"
                 placeholder="••••••••"
@@ -165,7 +176,6 @@ export default function Signup() {
                 onChangeText={setPassword}
               />
             </View>
-
           </View>
 
           {/* Action Button */}
@@ -194,7 +204,6 @@ export default function Signup() {
               <Text className="text-indigo-600 font-bold">Login</Text>
             </TouchableOpacity>
           </View>
-
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

@@ -1,10 +1,11 @@
 import { useAuth } from "@/src/context/AuthContext";
 import { Redirect } from "expo-router";
+import DealerHome from "./(dealer)/home";
 
 export default function Index() {
   const { user, userDoc, loading } = useAuth();
 
-  if (loading) return null;
+  if (loading) return  <DealerHome />;
 
   if (!user) return <Redirect href="/login" />;
 
@@ -16,5 +17,5 @@ export default function Index() {
     return <Redirect href="/home" />;
   }
 
-  return null;
+  return <DealerHome />;
 }
