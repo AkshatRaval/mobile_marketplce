@@ -23,6 +23,7 @@ import {
   Image,
   Modal,
   Pressable,
+  ScrollView,
   StatusBar,
   Text,
   TextInput,
@@ -39,29 +40,26 @@ const CLOUD_NAME = process.env.EXPO_PUBLIC_CLOUDINARY_NAME;
 const CLOUDINARY_API_KEY = process.env.EXPO_CLOUDINARY_API_KEY;
 const CLOUDINARY_API_SECRET = process.env.EXPO_CLOUDINARY_API_SECRET;
 
-// --- HELPER: GET IMAGE SAFELY ---
+// --- HELPER ---
 const getMainImage = (item: any) => {
   if (item.images && item.images.length > 0) return item.images[0];
   if (item.image) return item.image;
   return null;
 };
 
-// --- FEED CARD (Reels View) ---
+// --- FEED CARD ---
 const FeedProductCard: React.FC<{
   item: any;
   height: number;
   onClose: () => void;
-  onLongPress: () => void;
-}> = ({ item, height, onClose, onLongPress }) => {
+  onPressOptions: () => void;
+}> = ({ item, height, onClose, onPressOptions }) => {
   const [activeImageUri, setActiveImageUri] = useState(getMainImage(item));
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <View
-      style={{ height: height, width: SCREEN_WIDTH }}
-      className="bg-black relative"
-    >
-      <Pressable onLongPress={onLongPress} className="flex-1 relative">
+    <View style={{ height: height, width: SCREEN_WIDTH }} className="bg-black relative">
+      <Pressable className="flex-1 relative">
         {/* Main Image */}
         {activeImageUri ? (
           <Image
@@ -87,19 +85,8 @@ const FeedProductCard: React.FC<{
 
         {/* Gradient */}
         <LinearGradient
-          colors={[
-            "transparent",
-            "rgba(0,0,0,0.3)",
-            "rgba(0,0,0,0.6)",
-            "rgba(0,0,0,0.9)",
-          ]}
-          style={{
-            position: "absolute",
-            left: 0,
-            right: 0,
-            bottom: 0,
-            height: "50%",
-          }}
+          colors={["transparent", "rgba(0,0,0,0.3)", "rgba(0,0,0,0.9)"]}
+          style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: "50%" }}
         />
 
         {/* Thumbnails */}
@@ -112,7 +99,9 @@ const FeedProductCard: React.FC<{
               renderItem={({ item: imgUrl }) => (
                 <Pressable
                   onPress={() => setActiveImageUri(imgUrl)}
-                  className={`mr-3 rounded-lg overflow-hidden border-2 shadow-sm ${activeImageUri === imgUrl ? "border-white" : "border-white/30"}`}
+                  className={`mr-3 rounded-lg overflow-hidden border-2 shadow-sm ${
+                    activeImageUri === imgUrl ? "border-white" : "border-white/30"
+                  }`}
                 >
                   <Image
                     source={{ uri: imgUrl }}
@@ -126,7 +115,7 @@ const FeedProductCard: React.FC<{
           </View>
         )}
 
-        {/* Info */}
+        {/* Info & Options */}
         <View className="absolute bottom-0 w-full px-5 pb-10">
           <View className="flex-row items-end justify-between mb-2">
             <View className="flex-1 mr-4">
@@ -137,10 +126,16 @@ const FeedProductCard: React.FC<{
                 ₹{item.price}
               </Text>
             </View>
-            <View className="bg-white/20 p-2 rounded-full backdrop-blur-md">
-              <Ionicons name="ellipsis-horizontal" size={20} color="white" />
-            </View>
+            
+            {/* 3 DOTS MENU BUTTON */}
+            <TouchableOpacity 
+                onPress={onPressOptions}
+                className="bg-white/20 p-2 rounded-full backdrop-blur-md"
+            >
+              <Ionicons name="ellipsis-horizontal" size={24} color="white" />
+            </TouchableOpacity>
           </View>
+
           <Pressable onPress={() => setExpanded(!expanded)}>
             <Text
               numberOfLines={expanded ? undefined : 2}
@@ -165,19 +160,23 @@ export default function Profile() {
   const [profileData, setProfileData] = useState<any>(null);
   const [connectionsUsers, setConnectionsUsers] = useState<any[]>([]);
 
-  // State
+  // Feed State
   const [feedVisible, setFeedVisible] = useState(false);
   const [initialFeedIndex, setInitialFeedIndex] = useState(0);
   const [reelHeight, setReelHeight] = useState(WINDOW_HEIGHT);
 
-  // Actions
+  // Edit/Delete State
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [isOptionsVisible, setIsOptionsVisible] = useState(false);
-  const [isPriceModalVisible, setIsPriceModalVisible] = useState(false);
-  const [newPrice, setNewPrice] = useState("");
+  const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // 1. USER DATA
+  // Edit Fields
+  const [editName, setEditName] = useState("");
+  const [editPrice, setEditPrice] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+
+  // 1. FETCH PROFILE
   useEffect(() => {
     if (!user?.uid) return;
     const unsub = onSnapshot(doc(db, "users", user.uid), (docSnap) => {
@@ -190,7 +189,7 @@ export default function Profile() {
     return () => unsub();
   }, [user]);
 
-  // 2. CONNECTIONS
+  // 2. FETCH CONNECTIONS
   useEffect(() => {
     if (!profileData?.connections?.length) {
       setConnectionsUsers([]);
@@ -199,7 +198,6 @@ export default function Profile() {
     const ids = profileData.connections.slice(0, 10);
     const q = query(collection(db, "users"), where("uid", "in", ids));
     const unsub = onSnapshot(q, (snap) => {
-      // Ensure we grab the ID correctly
       setConnectionsUsers(snap.docs.map((d) => ({ uid: d.id, ...d.data() })));
     });
     return () => unsub();
@@ -207,20 +205,17 @@ export default function Profile() {
 
   // --- ACTIONS ---
 
-  // 🔥 FIXED NAVIGATION FUNCTION 🔥
-  const goToConnection = (targetUid: string) => {
-    console.log("Navigating to Profile:", targetUid); // Debug check
-    if (targetUid) {
-      // Use explicit path to avoid confusion
-      router.push(`/(dealer)/profile/${targetUid}`);
-    } else {
-      console.warn("User ID is missing!");
-    }
-  };
-
   const openFeedAtIndex = (index: number) => {
     setInitialFeedIndex(index);
     setFeedVisible(true);
+  };
+
+  const handleOpenOptions = (item: any) => {
+    setSelectedItem(item);
+    setEditName(item.name);
+    setEditPrice(item.price);
+    setEditDescription(item.description);
+    setIsOptionsVisible(true);
   };
 
   const deleteImageFromCloud = async (imageUrl: string) => {
@@ -271,26 +266,38 @@ export default function Profile() {
       );
       await updateDoc(doc(db, "users", user.uid), { listings: updatedList });
       setIsOptionsVisible(false);
+      
+      // Close feed if empty
+      if(updatedList.length === 0) setFeedVisible(false);
+      
     } catch (e) {
-      Alert.alert("Error", "Failed");
+      Alert.alert("Error", "Failed to delete");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleUpdatePrice = async () => {
+  const handleSaveEdit = async () => {
     if (!selectedItem || !user?.uid) return;
     setLoading(true);
     try {
-      await updateDoc(doc(db, "products", selectedItem.id), {
-        price: newPrice,
-      });
+      const updatedFields = {
+        name: editName,
+        price: editPrice,
+        description: editDescription,
+      };
+
+      await updateDoc(doc(db, "products", selectedItem.id), updatedFields);
+
       const updatedList = profileData.listings.map((l: any) =>
-        l.id === selectedItem.id ? { ...l, price: newPrice } : l
+        l.id === selectedItem.id ? { ...l, ...updatedFields } : l
       );
       await updateDoc(doc(db, "users", user.uid), { listings: updatedList });
-      setIsPriceModalVisible(false);
+
+      setIsEditModalVisible(false);
       setIsOptionsVisible(false);
+    } catch (e) {
+        Alert.alert("Error", "Failed to update");
     } finally {
       setLoading(false);
     }
@@ -317,21 +324,12 @@ export default function Profile() {
           MY PROFILE
         </Text>
 
-        <View className="flex-row gap-2">
-          <TouchableOpacity
-            onPress={() => router.push("/(dealer)/services/wishlist")}
-            className="bg-gray-50 p-2 rounded-full"
-          >
-            <Ionicons name="heart-outline" size={20} color="black" />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={handleLogout}
-            className="bg-gray-50 p-2 rounded-full"
-          >
-            <Ionicons name="ellipsis-vertical" size={20} color="black" />
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity
+          onPress={handleLogout}
+          className="bg-gray-50 p-2 rounded-full"
+        >
+          <Ionicons name="ellipsis-vertical" size={20} color="black" />
+        </TouchableOpacity>
       </View>
 
       <View className="px-6 flex-row items-center mb-6">
@@ -351,7 +349,6 @@ export default function Profile() {
             {profileData?.shopName || "Verified Shop"}
           </Text>
           <View className="flex-row items-center mt-4 gap-5">
-            {/* 1. LISTINGS (Static) */}
             <View>
               <Text className="text-lg font-black text-gray-900 leading-tight">
                 {listings.length}
@@ -361,10 +358,8 @@ export default function Profile() {
               </Text>
             </View>
 
-            {/* Divider Line */}
             <View className="w-[1px] h-6 bg-gray-200" />
 
-            {/* 2. CIRCLE (Clickable & Colored) */}
             <TouchableOpacity
               onPress={() => router.push("/(dealer)/services/connections")}
               className="flex-row items-center"
@@ -377,8 +372,6 @@ export default function Profile() {
                   Circle
                 </Text>
               </View>
-
-              {/* Subtle Arrow Icon to indicate clickable */}
               <View className="ml-2 bg-gray-50 p-1 rounded-full">
                 <Ionicons name="chevron-forward" size={12} color="black" />
               </View>
@@ -398,9 +391,8 @@ export default function Profile() {
             showsHorizontalScrollIndicator={false}
             keyExtractor={(item) => item.uid}
             renderItem={({ item }) => (
-              // 🔥 UPDATED ONPRESS 🔥
               <TouchableOpacity
-                onPress={() => goToConnection(item.uid || item.id)}
+                onPress={() => router.push(`/(dealer)/profile/${item.uid}`)}
                 className="mr-4 items-center"
               >
                 <Image
@@ -507,90 +499,105 @@ export default function Profile() {
                 item={item}
                 height={reelHeight}
                 onClose={() => setFeedVisible(false)}
-                onLongPress={() => {
-                  setSelectedItem(item);
-                  setNewPrice(item.price);
-                  setIsOptionsVisible(true);
-                }}
+                onPressOptions={() => handleOpenOptions(item)}
               />
             )}
           />
         </View>
       </Modal>
 
-      {/* --- OPTIONS MODAL --- */}
-      <Modal visible={isOptionsVisible} transparent animationType="slide">
-        <Pressable
-          onPress={() => setIsOptionsVisible(false)}
-          className="flex-1 bg-black/60 justify-end"
-        >
-          <View className="bg-white rounded-t-3xl p-6 pb-10">
-            <View className="flex-row justify-center mb-6">
-              <View className="w-12 h-1 bg-gray-300 rounded-full" />
-            </View>
-            <Text className="text-xl font-bold text-center mb-8">
-              Manage Listing
-            </Text>
-            <TouchableOpacity
-              onPress={() => {
-                setIsOptionsVisible(false);
-                setIsPriceModalVisible(true);
-              }}
-              className="bg-gray-100 p-4 rounded-xl flex-row items-center mb-3"
+      {/* --- MINI DROPDOWN MENU (No Full Modal) --- */}
+      {isOptionsVisible && (
+        <Modal transparent animationType="fade" visible={isOptionsVisible}>
+            <Pressable 
+                onPress={() => setIsOptionsVisible(false)}
+                className="flex-1 relative"
             >
-              <Ionicons name="pricetag-outline" size={24} color="black" />
-              <Text className="font-bold ml-4 text-base">Update Price</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={handleDeleteListing}
-              disabled={loading}
-              className="bg-red-50 p-4 rounded-xl flex-row items-center"
-            >
-              <Ionicons name="trash-outline" size={24} color="#EF4444" />
-              <Text className="font-bold ml-4 text-base text-red-500">
-                Delete Listing
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => setIsOptionsVisible(false)}
-              className="mt-6"
-            >
-              <Text className="text-center font-bold text-gray-400">
-                Cancel
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </Pressable>
-      </Modal>
+                {/* DROPDOWN CONTAINER 
+                   Positioned absolute bottom-right, roughly where the 3-dots button is 
+                */}
+                <View 
+                    className="absolute bottom-24 right-5 bg-white w-48 rounded-xl shadow-2xl overflow-hidden py-2"
+                    style={{ elevation: 10 }} // For Android shadow
+                >
+                    <TouchableOpacity
+                        onPress={() => {
+                            setIsOptionsVisible(false);
+                            setIsEditModalVisible(true);
+                        }}
+                        className="flex-row items-center px-4 py-3 active:bg-gray-100"
+                    >
+                        <Ionicons name="create-outline" size={20} color="#333" />
+                        <Text className="ml-3 font-bold text-gray-800">Edit Post</Text>
+                    </TouchableOpacity>
 
-      {/* --- PRICE MODAL --- */}
-      <Modal visible={isPriceModalVisible} transparent animationType="fade">
+                    <View className="h-[1px] bg-gray-100 mx-4" />
+
+                    <TouchableOpacity
+                        onPress={handleDeleteListing}
+                        disabled={loading}
+                        className="flex-row items-center px-4 py-3 active:bg-gray-100"
+                    >
+                        <Ionicons name="trash-outline" size={20} color="#EF4444" />
+                        <Text className="ml-3 font-bold text-red-500">Delete Post</Text>
+                    </TouchableOpacity>
+                </View>
+            </Pressable>
+        </Modal>
+      )}
+
+      {/* --- EDIT MODAL (FULL SCREEN) --- */}
+      <Modal visible={isEditModalVisible} transparent animationType="fade">
         <View className="flex-1 bg-black/80 justify-center items-center px-6">
-          <View className="bg-white w-full rounded-3xl p-6">
-            <Text className="text-lg font-bold mb-4">New Price</Text>
-            <TextInput
-              value={newPrice}
-              onChangeText={setNewPrice}
-              keyboardType="numeric"
-              className="bg-gray-100 p-4 rounded-xl text-xl font-black mb-6"
-              placeholder="0"
-            />
-            <View className="flex-row gap-4">
+          <View className="bg-white w-full rounded-3xl p-6 max-h-[80%]">
+            <Text className="text-xl font-black text-center mb-6">Edit Listing</Text>
+            
+            <ScrollView showsVerticalScrollIndicator={false}>
+                <Text className="text-gray-500 font-bold mb-1 ml-1 text-xs uppercase">Product Name</Text>
+                <TextInput
+                    value={editName}
+                    onChangeText={setEditName}
+                    className="bg-gray-100 p-4 rounded-xl font-bold mb-4"
+                    placeholder="Product Name"
+                />
+
+                <Text className="text-gray-500 font-bold mb-1 ml-1 text-xs uppercase">Price (₹)</Text>
+                <TextInput
+                    value={editPrice}
+                    onChangeText={setEditPrice}
+                    keyboardType="numeric"
+                    className="bg-gray-100 p-4 rounded-xl font-bold mb-4"
+                    placeholder="Price"
+                />
+
+                <Text className="text-gray-500 font-bold mb-1 ml-1 text-xs uppercase">Description</Text>
+                <TextInput
+                    value={editDescription}
+                    onChangeText={setEditDescription}
+                    multiline
+                    numberOfLines={3}
+                    textAlignVertical="top"
+                    className="bg-gray-100 p-4 rounded-xl font-medium mb-6 min-h-[100px]"
+                    placeholder="Description"
+                />
+            </ScrollView>
+
+            <View className="flex-row gap-4 mt-2">
               <TouchableOpacity
-                onPress={() => setIsPriceModalVisible(false)}
+                onPress={() => setIsEditModalVisible(false)}
                 className="flex-1 bg-gray-200 py-3 rounded-xl items-center"
               >
                 <Text className="font-bold">Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                onPress={handleUpdatePrice}
+                onPress={handleSaveEdit}
                 disabled={loading}
                 className="flex-1 bg-black py-3 rounded-xl items-center"
               >
                 {loading ? (
                   <ActivityIndicator color="white" />
                 ) : (
-                  <Text className="text-white font-bold">Save</Text>
+                  <Text className="text-white font-bold">Save Changes</Text>
                 )}
               </TouchableOpacity>
             </View>

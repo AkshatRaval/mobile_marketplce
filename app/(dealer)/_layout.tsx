@@ -2,12 +2,16 @@ import { useAuth } from "@/src/context/AuthContext";
 import { Ionicons } from "@expo/vector-icons";
 import { Redirect, Tabs } from "expo-router";
 import React from "react";
-import { ActivityIndicator, Platform, View } from "react-native";
+import { ActivityIndicator, View } from "react-native";
+// 1. Import the hook
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const ICON_SIZE = 26;
 
 export default function DealerLayout() {
   const { user, userDoc, loading } = useAuth();
+  // 2. Get the safe area insets
+  const insets = useSafeAreaInsets();
 
   if (loading) {
     return (
@@ -31,8 +35,11 @@ export default function DealerLayout() {
         tabBarInactiveTintColor: "#8E8E93",
 
         tabBarStyle: {
-          height: 60,
-          paddingBottom: Platform.OS === "ios" ? 14 : 10,
+          // 3. Dynamically calculate height and padding
+          // Base height (60) + the safe area bottom inset
+          height: 60 + insets.bottom,
+          // Use the safe area inset for padding, with a fallback for devices without insets (like older Androids)
+          paddingBottom: insets.bottom, 
           paddingTop: 6,
           backgroundColor: "#fff",
           borderTopWidth: 0.5,
@@ -102,7 +109,6 @@ export default function DealerLayout() {
       />
 
       <Tabs.Screen name="profile/[id]" options={{ href: null }} />
-      <Tabs.Screen name="services/wishlist" options={{ href: null }} />
       <Tabs.Screen name="services/connections" options={{ href: null }} />
     </Tabs>
   );

@@ -28,7 +28,7 @@ export default function Signup() {
   const [password, setPassword] = useState("");
 
   // UI State
-  const [loading, setLoading] = useState(false); // Fixed: Should start as false
+  const [loading, setLoading] = useState(false);
 
   const signup = async () => {
     // 1. Basic Validation
@@ -37,41 +37,58 @@ export default function Signup() {
       return;
     }
 
+    // 2. Email Validation (@gmail.com only)
+    const trimmedEmail = email.trim().toLowerCase();
+    if (!trimmedEmail.endsWith("@gmail.com")) {
+      Alert.alert("Invalid Email", "Please use a valid @gmail.com address.");
+      return;
+    }
+
+    // 3. Phone Validation (Exactly 10 digits)
+    // Remove any non-numeric characters first (e.g., spaces or dashes)
+    const cleanPhone = phone.replace(/[^0-9]/g, "");
+    if (cleanPhone.length !== 10) {
+      Alert.alert(
+        "Invalid Phone",
+        "Phone number must be exactly 10 digits."
+      );
+      return;
+    }
+
     setLoading(true);
 
     try {
-      // 2. Create Authentication User
-      const res = await createUserWithEmailAndPassword(auth, email, password);
+      // 4. Create Authentication User
+      const res = await createUserWithEmailAndPassword(auth, trimmedEmail, password);
 
-      // 3. Create User Profile
+      // 5. Create User Profile
       await setDoc(doc(db, "users", res.user.uid), {
-        userEmail: email,
-        displayName: name,
-        shopName: shopName,
-        phone: phone, // Good to have phone here too
+        userEmail: trimmedEmail,
+        displayName: name.trim(),
+        shopName: shopName.trim(),
+        phone: cleanPhone, // Store the clean 10-digit number
         role: "dealer",
-        connections: [], 
+        connections: [],
         requestSent: [],
         requestReceived: [],
         onboardingStatus: "submitted",
         createdAt: Date.now(),
       });
 
-      // 4. Create Pending Request
+      // 6. Create Pending Request
       await setDoc(doc(db, "pending-request", res.user.uid), {
         uid: res.user.uid,
-        displayName: name,
-        shopName: shopName, // Admin usually needs to know the shop name
-        phone: phone,
+        displayName: name.trim(),
+        shopName: shopName.trim(),
+        phone: cleanPhone,
         status: "pending",
         requestDate: Date.now(),
       });
 
-      // 5. Navigate
+      // 7. Navigate
       router.replace("/onboarding");
     } catch (error: any) {
-      // 6. meaningful Error Handling
-
+      // 8. Error Handling
       let msg = error.message;
       if (msg.includes("email-already-in-use"))
         msg = "This email is already registered.";
@@ -142,7 +159,8 @@ export default function Signup() {
                 className="w-full bg-gray-50 border border-gray-200 rounded-xl p-4 text-gray-700 focus:border-indigo-500"
                 placeholder="Ex. 9876543210"
                 placeholderTextColor="#9CA3AF"
-                keyboardType="phone-pad"
+                keyboardType="number-pad"
+                maxLength={10} // UX Constraint
                 value={phone}
                 onChangeText={setPhone}
               />
@@ -154,7 +172,7 @@ export default function Signup() {
               </Text>
               <TextInput
                 className="w-full bg-gray-50 border border-gray-200 rounded-xl p-4 text-gray-700 focus:border-indigo-500"
-                placeholder="john@example.com"
+                placeholder="john@gmail.com"
                 placeholderTextColor="#9CA3AF"
                 keyboardType="email-address"
                 autoCapitalize="none"
