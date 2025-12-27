@@ -1,0 +1,92 @@
+{
+  "summary": {
+    "critical": 2,
+    "high": 4,
+    "medium": 8,
+    "low": 3,
+    "total": 17
+  },
+  "issues": {
+    "CRITICAL": [
+      {
+        "category": "Security",
+        "message": "Potential hardcoded API key in FirebaseConfig.ts"
+      },
+      {
+        "category": "Testing",
+        "message": "No test directory found"
+      }
+    ],
+    "MEDIUM": [
+      {
+        "category": "Git",
+        "message": ".gitignore missing pattern: *.log"
+      },
+      {
+        "category": "Git",
+        "message": ".gitignore missing pattern: venv"
+      },
+      {
+        "category": "Python",
+        "message": "Many print statements in analyze_codebase.py - use logging"
+      },
+      {
+        "category": "Python",
+        "message": "Low type hint coverage (14%) in analyze_codebase.py"
+      },
+      {
+        "category": "Python",
+        "message": "Low type hint coverage (0%) in experiments\\temp.py"
+      },
+      {
+        "category": "Python",
+        "message": "Low type hint coverage (11%) in ml\\extractor_api.py"
+      },
+      {
+        "category": "TypeScript",
+        "message": "noImplicitAny not enabled"
+      },
+      {
+        "category": "Documentation",
+        "message": "No .env.example file"
+      }
+    ],
+    "HIGH": [
+      {
+        "category": "Python",
+        "message": "No requirements.txt found"
+      },
+      {
+        "category": "Python",
+        "message": "Bare except clause in ml\\extractor_api.py"
+      },
+      {
+        "category": "Testing",
+        "message": "No Jest configuration found"
+      },
+      {
+        "category": "Testing",
+        "message": "No pytest configuration found"
+      }
+    ],
+    "LOW": [
+      {
+        "category": "Documentation",
+        "message": "README.md missing 'Installation' section"
+      },
+      {
+        "category": "Documentation",
+        "message": "README.md missing 'Usage' section"
+      },
+      {
+        "category": "Documentation",
+        "message": "README.md missing 'Setup' section"
+      }
+    ]
+  },
+  "stats": {
+    "any_types": 0,
+    "npm_dependencies": 44,
+    "test_files": 40
+  }
+}

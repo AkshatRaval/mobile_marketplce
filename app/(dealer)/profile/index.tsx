@@ -37,8 +37,8 @@ const { width: SCREEN_WIDTH, height: WINDOW_HEIGHT } = Dimensions.get("window");
 const GRID_ITEM_WIDTH = SCREEN_WIDTH / 3;
 
 const CLOUD_NAME = process.env.EXPO_PUBLIC_CLOUDINARY_NAME;
-const CLOUDINARY_API_KEY = process.env.EXPO_CLOUDINARY_API_KEY;
-const CLOUDINARY_API_SECRET = process.env.EXPO_CLOUDINARY_API_SECRET;
+const CLOUDINARY_API_KEY = process.env.EXPO_PUBLIC_CLOUDINARY_API_KEY;
+const CLOUDINARY_API_SECRET = process.env.EXPO_PUBLIC_CLOUDINARY_API_SECRET;
 
 // --- HELPER ---
 const getMainImage = (item: any) => {
