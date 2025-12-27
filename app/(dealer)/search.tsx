@@ -22,6 +22,8 @@ import {
 import ImageView from "react-native-image-viewing";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import type { Product } from '@/src/types/index';
+
 // --- DIMENSIONS ---
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -29,29 +31,6 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 // You can adjust '220' to account for your specific Header + TabBar height
 const CARD_HEIGHT = SCREEN_HEIGHT - 220;
 const CARD_WIDTH = SCREEN_WIDTH - 32; // 16px padding on each side
-
-// --- TYPES ---
-interface ExtractedData {
-  brand?: string;
-  model?: string;
-  ramGb?: number;
-  storageGb?: number;
-}
-
-interface Product {
-  id: string;
-  name: string;
-  price: string;
-  tags?: string[];
-  description: string;
-  images: string[];
-  dealerName: string;
-  dealerAvatar?: string;
-  dealerPhone?: string;
-  userId?: string;
-  city: string;
-  extractedData?: ExtractedData;
-}
 
 // --- PRODUCT CARD ---
 const ProductCard: React.FC<{ item: Product; router: any }> = ({

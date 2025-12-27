@@ -1,20 +1,8 @@
-import { db } from "@/FirebaseConfig";
-import { useAuth } from "@/src/context/AuthContext";
 import { Ionicons } from "@expo/vector-icons";
-import Constants from "expo-constants";
-import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
-import {
-  addDoc,
-  arrayUnion,
-  collection,
-  doc,
-  updateDoc,
-} from "firebase/firestore";
-import React, { useState } from "react";
+import React from "react";
 import {
   ActivityIndicator,
-  Alert,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -30,124 +18,37 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 
-/* ===============================
-   CONFIG
-================================ */
-const debuggerHost =
-  Constants.expoConfig?.hostUri || Constants.manifest?.debuggerHost;
-const localhost = debuggerHost?.split(":")[0] || "localhost";
+// ✅ Import hooks - all logic is here now!
+import { useImagePicker } from "@/src/hooks/useImagePicker";
+import { useProductForm } from "@/src/hooks/useProductForm";
 
-const CLOUD_NAME = process.env.EXPO_PUBLIC_CLOUDINARY_NAME;
-const UPLOAD_PRESET = "phone_images";
-const CLOUDINARY_URL = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`;
-const EXTRACTION_API_URL = `http://${localhost}:8000/extract`;
-
-export default function Inventory() {
-  const { user, userDoc } = useAuth();
+export default function UploadPost() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  const [images, setImages] = useState<string[]>([]);
-  const [name, setName] = useState("");
-  const [price, setPrice] = useState("");
-  const [description, setDescription] = useState("");
-  const [uploading, setUploading] = useState(false);
+  // ✅ All image logic in this hook
+  const { images, addImage, removeImage, canAddMore } = useImagePicker(4);
 
-  /* ===============================
-     HELPERS
-  ================================ */
-  const getWordCount = (text: string) =>
-    text.trim().split(/\s+/).filter(Boolean).length;
+  // ✅ All form logic in this hook
+  const {
+    name,
+    setName,
+    price,
+    setPrice,
+    description,
+    setDescription,
+    uploading,
+    submitProduct,
+  } = useProductForm();
 
-  const pickImage = async () => {
-    if (images.length >= 4) {
-      Alert.alert("Limit Reached", "Max 4 images allowed.");
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      quality: 0.6,
-    });
-
-    if (!result.canceled) {
-      setImages((prev) => [...prev, result.assets[0].uri]);
-    }
-  };
-
-  const removeImage = (index: number) => {
-    setImages((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const uploadToCloudinary = async (uri: string) => {
-    const formData = new FormData();
-    const filename = uri.split("/").pop() || "image.jpg";
-
-    // @ts-ignore
-    formData.append("file", {
-      uri,
-      name: filename,
-      type: "image/jpeg",
-    });
-    formData.append("upload_preset", UPLOAD_PRESET);
-
-    const res = await fetch(CLOUDINARY_URL, {
-      method: "POST",
-      body: formData,
-    });
-
-    const data = await res.json();
-    if (!data.secure_url) throw new Error("Upload failed");
-    return data.secure_url;
-  };
-
+  // ✅ Simple handler - just calls the hook
   const handlePost = async () => {
-    if (!user?.uid) return;
-
-    if (!name || !price || !description || images.length === 0) {
-      Alert.alert("Missing info", "Fill all fields.");
-      return;
-    }
-
-    setUploading(true);
-    try {
-      const imageUrls = await Promise.all(
-        images.map(uploadToCloudinary)
-      );
-
-      const docRef = await addDoc(collection(db, "products"), {
-        userId: user.uid,
-        dealerName: userDoc?.displayName,
-        city: userDoc?.city,
-        name,
-        price,
-        description,
-        images: imageUrls,
-        createdAt: Date.now(),
-      });
-
-      await updateDoc(doc(db, "users", user.uid), {
-        listings: arrayUnion({
-          id: docRef.id,
-          name,
-          price,
-          image: imageUrls[0],
-        }),
-      });
-
-      Alert.alert("Success", "Listing added");
+    const success = await submitProduct(images);
+    if (success) {
       router.back();
-    } catch (e) {
-      Alert.alert("Error", "Upload failed");
-    } finally {
-      setUploading(false);
     }
   };
 
-  /* ===============================
-     UI
-  ================================ */
   return (
     <SafeAreaView
       edges={["top", "bottom"]}
@@ -176,7 +77,10 @@ export default function Inventory() {
           <Text className="font-bold mb-3">Product Images</Text>
           <View className="flex-row flex-wrap gap-3 mb-6">
             {images.map((uri, i) => (
-              <View key={i} className="relative w-20 h-20 rounded-xl overflow-hidden">
+              <View
+                key={i}
+                className="relative w-20 h-20 rounded-xl overflow-hidden"
+              >
                 <Image source={{ uri }} className="w-full h-full" />
                 <TouchableOpacity
                   onPress={() => removeImage(i)}
@@ -187,9 +91,9 @@ export default function Inventory() {
               </View>
             ))}
 
-            {images.length < 4 && (
+            {canAddMore && (
               <TouchableOpacity
-                onPress={pickImage}
+                onPress={addImage}
                 className="w-20 h-20 border-2 border-dashed border-gray-300 rounded-xl items-center justify-center"
               >
                 <Ionicons name="camera-outline" size={22} color="#999" />
@@ -224,7 +128,7 @@ export default function Inventory() {
           />
         </ScrollView>
 
-        {/* FIXED FOOTER */}
+        {/* FOOTER */}
         <View
           style={{
             padding: 16,
