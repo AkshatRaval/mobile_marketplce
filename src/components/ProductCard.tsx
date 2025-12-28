@@ -1,6 +1,5 @@
-// src/components/product/ProductCard.tsx
-// Product card component for feed display
-// EXTRACTED FROM: home.tsx lines 76-270
+// src/components/ProductCard.tsx
+// FIXED - No overlaps, proper spacing
 
 import type { Product } from "@/src/types";
 import { communications } from "@/src/utils/communications";
@@ -8,23 +7,18 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useRef, useState } from "react";
 import {
-    Dimensions,
-    FlatList,
-    Image,
-    Pressable,
-    Text,
-    TouchableOpacity,
-    View,
-    ViewToken,
+  Dimensions,
+  FlatList,
+  Image,
+  Pressable,
+  Text,
+  TouchableOpacity,
+  View,
+  ViewToken,
 } from "react-native";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const CARD_WIDTH = SCREEN_WIDTH - 16;
 
-/**
- * Helper to get creator ID from product
- * EXTRACTED FROM: home.tsx getCreatorId function (lines 64-72)
- */
 const getCreatorId = (item: any): string | null => {
   return (
     item?.userId ||
@@ -43,47 +37,33 @@ interface ProductCardProps {
   onPressImage: (images: string[], index: number) => void;
 }
 
-/**
- * Product Card Component
- * EXTRACTED FROM: home.tsx ProductCard component (lines 76-270)
- */
 export const ProductCard = React.memo(
   ({ item, height, onPressProfile, onPressImage }: ProductCardProps) => {
     const [activeIndex, setActiveIndex] = useState(0);
     const [expanded, setExpanded] = useState(false);
 
-    // Image carousel handlers
     const onViewableItemsChanged = useRef(
       ({ viewableItems }: { viewableItems: ViewToken[] }) => {
-        if (viewableItems.length > 0 && viewableItems[0].index != null) {
+        if (viewableItems[0]?.index != null) {
           setActiveIndex(viewableItems[0].index);
         }
       }
     ).current;
 
     const viewabilityConfig = useRef({
-      viewAreaCoveragePercentThreshold: 50,
+      viewAreaCoveragePercentThreshold: 60,
     }).current;
 
-    // Get images array (handle different field names)
     const images =
-      item.images && item.images.length > 0
+      item.images?.length > 0
         ? item.images
         : item.image
-          ? [item.image]
-          : [];
+        ? [item.image]
+        : [];
 
-    /**
-     * Open WhatsApp with dealer
-     * EXTRACTED FROM: home.tsx openWhatsApp function (lines 119-155)
-     * Now uses communications utility
-     */
     const handleWhatsAppPress = async () => {
       const dealerId = item.dealerId || item.userId || item.createdBy;
-
-      if (!dealerId) {
-        return;
-      }
+      if (!dealerId) return;
 
       await communications.openWhatsAppForProduct(
         dealerId,
@@ -93,8 +73,17 @@ export const ProductCard = React.memo(
     };
 
     return (
-      <View style={{ height, width: SCREEN_WIDTH }} className="bg-white">
-        <View className="flex-1 m-2 rounded-[28px] overflow-hidden bg-black relative">
+      <View style={{ height, width: SCREEN_WIDTH, backgroundColor: 'white' }}>
+        {/* Card Container with margins */}
+        <View style={{ 
+          flex: 1, 
+          marginHorizontal: 8,
+          marginVertical: 4,
+          borderRadius: 28, 
+          overflow: 'hidden', 
+          backgroundColor: 'black',
+        }}>
+          
           {/* IMAGE SLIDER */}
           <FlatList
             data={images}
@@ -103,15 +92,15 @@ export const ProductCard = React.memo(
             showsHorizontalScrollIndicator={false}
             onViewableItemsChanged={onViewableItemsChanged}
             viewabilityConfig={viewabilityConfig}
-            keyExtractor={(img, index) => `${item.id}-${index}`}
+            keyExtractor={(_, index) => `${item.id}-${index}`}
             renderItem={({ item: imgUri, index }) => (
               <Pressable
                 onPress={() => onPressImage(images, index)}
-                style={{ width: CARD_WIDTH, height: "100%" }}
+                style={{ width: SCREEN_WIDTH - 16 }}
               >
                 <Image
                   source={{ uri: imgUri }}
-                  style={{ width: "100%", height: "100%" }}
+                  style={{ width: "100%", height: height - 8 }}
                   resizeMode="cover"
                 />
               </Pressable>
@@ -121,20 +110,30 @@ export const ProductCard = React.memo(
           {/* GRADIENT OVERLAY */}
           <LinearGradient
             pointerEvents="none"
-            colors={["transparent", "rgba(0,0,0,0.3)", "rgba(0,0,0,0.8)"]}
+            colors={["transparent", "rgba(0,0,0,0.4)", "rgba(0,0,0,0.9)"]}
             style={{
               position: "absolute",
               left: 0,
               right: 0,
               bottom: 0,
-              height: "55%",
+              height: height * 0.5,
             }}
           />
 
-          {/* DEALER BADGE (Top Left) */}
+          {/* DEALER BADGE - TOP */}
           <TouchableOpacity
             onPress={() => onPressProfile(getCreatorId(item)!)}
-            className="absolute top-4 left-4 flex-row items-center bg-black/40 px-3 py-2 rounded-full backdrop-blur-md"
+            style={{
+              position: 'absolute',
+              top: 16,
+              left: 16,
+              flexDirection: 'row',
+              alignItems: 'center',
+              backgroundColor: 'rgba(0,0,0,0.4)',
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+              borderRadius: 999,
+            }}
           >
             <Image
               source={{
@@ -142,65 +141,91 @@ export const ProductCard = React.memo(
                   item.dealerAvatar ||
                   `https://ui-avatars.com/api/?name=${item.dealerName || "User"}`,
               }}
-              className="w-8 h-8 rounded-full border border-white/40"
+              style={{ width: 32, height: 32, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.4)' }}
             />
-            <View className="ml-2">
-              <Text className="text-white text-xs font-bold shadow-sm">
+            <View style={{ marginLeft: 8 }}>
+              <Text style={{ color: 'white', fontSize: 12, fontWeight: '700' }}>
                 {item.dealerName}
               </Text>
-              <Text className="text-gray-300 text-[10px] shadow-sm">
+              <Text style={{ color: '#D1D5DB', fontSize: 10 }}>
                 {item.city}
               </Text>
             </View>
           </TouchableOpacity>
 
-          {/* BOTTOM CONTENT */}
-          <View className="absolute bottom-0 w-full px-5 pb-6">
-            {/* IMAGE DOTS (if multiple images) */}
+          {/* BOTTOM CONTENT - PROPER SPACING */}
+          <View
+            style={{
+              position: 'absolute',
+              bottom: 0,
+              left: 0,
+              right: 0,
+              paddingHorizontal: 20,
+              paddingBottom: 24,
+            }}
+          >
+            {/* IMAGE DOTS */}
             {images.length > 1 && (
-              <View className="self-center flex-row gap-1.5 mb-3 bg-black/20 px-2 py-1 rounded-full backdrop-blur-sm">
+              <View style={{
+                alignSelf: 'center',
+                flexDirection: 'row',
+                gap: 6,
+                marginBottom: 12,
+                backgroundColor: 'rgba(0,0,0,0.2)',
+                paddingHorizontal: 8,
+                paddingVertical: 4,
+                borderRadius: 999,
+              }}>
                 {images.map((_, i) => (
                   <View
                     key={i}
-                    className={`rounded-full transition-all duration-300 ${
-                      i === activeIndex
-                        ? "bg-white w-2 h-2"
-                        : "bg-white/50 w-1.5 h-1.5"
-                    }`}
+                    style={{
+                      borderRadius: 999,
+                      backgroundColor: i === activeIndex ? 'white' : 'rgba(255,255,255,0.5)',
+                      width: i === activeIndex ? 8 : 6,
+                      height: i === activeIndex ? 8 : 6,
+                    }}
                   />
                 ))}
               </View>
             )}
 
-            {/* TITLE, PRICE, WHATSAPP BUTTON */}
-            <View className="flex-row justify-between items-end mb-3">
-              <View className="flex-1 mr-3">
-                <Text className="text-white font-black text-3xl shadow-sm">
+            {/* TITLE + PRICE + CHAT BUTTON */}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 12 }}>
+              <View style={{ flex: 1, marginRight: 12 }}>
+                <Text style={{ color: 'white', fontWeight: '900', fontSize: 28, lineHeight: 32 }} numberOfLines={2}>
                   {item.name}
                 </Text>
-                <Text className="text-yellow-400 font-bold text-2xl mt-1 shadow-sm">
+                <Text style={{ color: '#FBBF24', fontWeight: '700', fontSize: 22, marginTop: 4 }}>
                   ₹{item.price}
                 </Text>
               </View>
 
               <TouchableOpacity
                 onPress={handleWhatsAppPress}
-                className="bg-white h-12 w-12 rounded-full items-center justify-center shadow-lg"
+                style={{
+                  backgroundColor: 'white',
+                  height: 48,
+                  width: 48,
+                  borderRadius: 24,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
               >
                 <Ionicons name="chatbubble" size={20} color="#000" />
               </TouchableOpacity>
             </View>
 
-            {/* DESCRIPTION (Expandable) */}
+            {/* DESCRIPTION - COMPACT */}
             <Pressable onPress={() => setExpanded(!expanded)}>
               <Text
-                numberOfLines={expanded ? undefined : 2}
-                className="text-gray-300 text-sm leading-5"
+                numberOfLines={expanded ? 4 : 2}
+                style={{ color: '#D1D5DB', fontSize: 13, lineHeight: 18 }}
               >
                 {item.description || "Mint condition. DM for details."}
               </Text>
               {(item.description?.length || 0) > 60 && (
-                <Text className="text-gray-400 text-xs mt-1 font-bold">
+                <Text style={{ color: '#9CA3AF', fontSize: 11, marginTop: 4, fontWeight: '700' }}>
                   {expanded ? "Show less" : "...more"}
                 </Text>
               )}

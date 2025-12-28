@@ -35,9 +35,11 @@ export default function Index() {
     // CRITICAL: Check if they are actually approved to enter
     if (userDoc?.onboardingStatus === "approved") {
       return <Redirect href="/(dealer)/home" />;
-    } else {
+    } else if(userDoc?.onboardingStatus === "suspended"){
       // If pending, rejected, or submitted, send back to onboarding status screen
-      return <Redirect href="/onboarding" />;
+      return <Redirect href="/(auth)/suspended" />;
+    }else {
+      return <Redirect href="/(auth)/onboarding" />;
     }
   }
 

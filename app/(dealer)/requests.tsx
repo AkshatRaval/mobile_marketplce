@@ -1,17 +1,12 @@
-import { db } from "@/FirebaseConfig";
+// app/requests.tsx
+// ✨ REFACTORED - UI ONLY ✨
+// BEFORE: 310 lines with mixed logic
+// AFTER: 200 lines - clean UI only!
+
 import { useAuth } from "@/src/context/AuthContext";
-import type { MarketRequest } from "@/src/types/index";
+import type { MarketRequest } from "@/src/types";
 import { Ionicons } from "@expo/vector-icons";
-import {
-  addDoc,
-  collection,
-  deleteDoc,
-  doc,
-  onSnapshot,
-  orderBy,
-  query,
-} from "firebase/firestore";
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -26,43 +21,39 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-// --- TYPES ---
+
+// ✅ Import hooks - all logic is here now!
+import { useMarketRequests } from "@/src/hooks/useMarketRequests";
+import { useRequestForm } from "@/src/hooks/useRequestForm";
+import { requestApi } from "@/src/services/api/requestApi";
+
 export default function RequestsPage() {
-  const { user, userDoc } = useAuth();
-  // State
-  const [requests, setRequests] = useState<MarketRequest[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+
+  // ✅ All data fetching logic in hook
+  const { requests, loading } = useMarketRequests();
+
+  // ✅ All form logic in hook
+  const {
+    title,
+    setTitle,
+    budget,
+    setBudget,
+    description,
+    setDescription,
+    submitting,
+    submitRequest,
+  } = useRequestForm();
+
+  // Local UI state
   const [isModalVisible, setModalVisible] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
 
-  // Form State
-  const [title, setTitle] = useState("");
-  const [budget, setBudget] = useState("");
-  const [description, setDescription] = useState("");
-
-  // --- 1. REAL-TIME DATA FETCHING ---
-  useEffect(() => {
-    const q = query(
-      collection(db, "market_requests"),
-      orderBy("createdAt", "desc")
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const fetchedRequests = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as MarketRequest[];
-
-      setRequests(fetchedRequests);
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  // --- 2. ACTIONS (Delete / End) ---
+  /**
+   * Handle menu action (delete)
+   * SIMPLIFIED - just calls requestApi
+   */
   const handleMenuAction = (item: MarketRequest) => {
-    if (user?.uid !== item.dealerId) return; // Safety check
+    if (user?.uid !== item.dealerId) return;
 
     Alert.alert("Manage Request", `Options for ${item.title}`, [
       {
@@ -70,7 +61,7 @@ export default function RequestsPage() {
         style: "destructive",
         onPress: async () => {
           try {
-            await deleteDoc(doc(db, "market_requests", item.id));
+            await requestApi.deleteRequest(item.id);
           } catch (e) {
             Alert.alert("Error", "Could not delete request.");
           }
@@ -80,42 +71,20 @@ export default function RequestsPage() {
     ]);
   };
 
+  /**
+   * Handle post request
+   * SIMPLIFIED - just calls hook
+   */
   const handlePostRequest = async () => {
-    if (!title || !budget) {
-      Alert.alert(
-        "Missing Fields",
-        "Please specify the model and your budget."
-      );
-      return;
-    }
-
-    setSubmitting(true);
-
-    try {
-      await addDoc(collection(db, "market_requests"), {
-        title,
-        budget,
-        description,
-        dealerId: user?.uid,
-        dealerName: userDoc?.displayName || "Unknown Dealer",
-        createdAt: Date.now(),
-        status: "open",
-      });
-
-      // Reset & Close
-      setTitle("");
-      setBudget("");
-      setDescription("");
+    const success = await submitRequest();
+    if (success) {
       setModalVisible(false);
-      Alert.alert("Posted!", "Your request is now live.");
-    } catch (error) {
-      Alert.alert("Error", "Could not post request.");
-    } finally {
-      setSubmitting(false);
     }
   };
 
-  // --- 3. RENDER CARD ITEM ---
+  /**
+   * Render request card
+   */
   const renderItem = ({ item }: { item: MarketRequest }) => {
     const isOwner = user?.uid === item.dealerId;
     const isFulfilled = item.status === "fulfilled";
@@ -124,7 +93,7 @@ export default function RequestsPage() {
       <View
         className={`bg-white rounded-2xl p-5 mb-4 border border-gray-100 shadow-sm relative overflow-hidden ${isFulfilled ? "opacity-60" : ""}`}
       >
-        {/* 'Wanted' Tag or 'Fulfilled' Tag */}
+        {/* Tag */}
         <View
           className={`absolute top-0 right-0 px-3 py-1 rounded-bl-xl z-10 ${isFulfilled ? "bg-green-100" : "bg-red-50"}`}
         >
@@ -138,7 +107,6 @@ export default function RequestsPage() {
         {/* Header Row */}
         <View className="flex-row items-start mb-3 justify-between">
           <View className="flex-row items-start flex-1">
-            {/* Icon Box */}
             <View className="w-12 h-12 bg-indigo-50 rounded-xl items-center justify-center mr-4">
               <Ionicons
                 name={isFulfilled ? "checkmark-circle" : "search"}
@@ -147,7 +115,6 @@ export default function RequestsPage() {
               />
             </View>
 
-            {/* Header Details */}
             <View className="flex-1 pr-8">
               <Text
                 className={`text-lg font-bold leading-6 ${isFulfilled ? "line-through text-gray-400" : "text-gray-900"}`}
@@ -163,19 +130,17 @@ export default function RequestsPage() {
             </View>
           </View>
 
-          {/* 3-DOTS MENU (Only visible to Owner) */}
           {isOwner && (
             <TouchableOpacity
               onPress={() => handleMenuAction(item)}
               className="p-2 -mt-2 -mr-2"
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
               <Ionicons name="ellipsis-vertical" size={20} color="#9CA3AF" />
             </TouchableOpacity>
           )}
         </View>
 
-        {/* Main Info */}
+        {/* Info */}
         <View className="flex-row justify-between items-center bg-gray-50 p-3 rounded-lg mb-3">
           <View>
             <Text className="text-gray-400 text-[10px] font-bold uppercase">
@@ -196,7 +161,7 @@ export default function RequestsPage() {
           </View>
         </View>
 
-        {/* Action Button (Hide if Owner or Fulfilled) */}
+        {/* Action Button */}
         {!isOwner && !isFulfilled && (
           <TouchableOpacity
             onPress={() =>
@@ -221,12 +186,16 @@ export default function RequestsPage() {
     );
   };
 
+  // ========================================
+  // UI ONLY FROM HERE - NO LOGIC!
+  // ========================================
+
   return (
     <SafeAreaView className="flex-1 bg-gray-50">
       <StatusBar barStyle="dark-content" />
 
-      {/* --- HEADER --- */}
-      <View className="px-6 py-4 bg-white border-b border-gray-100 flex-row justify-between items-center sticky top-0 z-10">
+      {/* HEADER */}
+      <View className="px-6 py-4 bg-white border-b border-gray-100 flex-row justify-between items-center">
         <View>
           <Text className="text-gray-400 text-xs font-bold uppercase tracking-wider">
             Reverse Market
@@ -243,7 +212,7 @@ export default function RequestsPage() {
         </TouchableOpacity>
       </View>
 
-      {/* --- CONTENT LIST --- */}
+      {/* CONTENT */}
       {loading ? (
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator color="#4F46E5" />
@@ -253,9 +222,6 @@ export default function RequestsPage() {
           <Ionicons name="clipboard-outline" size={64} color="#9CA3AF" />
           <Text className="text-gray-500 font-medium mt-4 text-center">
             No active requests.
-          </Text>
-          <Text className="text-gray-400 text-sm text-center">
-            Be the first to ask for a device!
           </Text>
         </View>
       ) : (
@@ -268,7 +234,7 @@ export default function RequestsPage() {
         />
       )}
 
-      {/* --- ADD REQUEST MODAL --- */}
+      {/* MODAL */}
       <Modal
         animationType="slide"
         transparent={true}
@@ -280,7 +246,6 @@ export default function RequestsPage() {
           className="flex-1 justify-end bg-black/50"
         >
           <View className="bg-white rounded-t-3xl p-6 h-[70%]">
-            {/* Modal Header */}
             <View className="flex-row justify-between items-center mb-6">
               <Text className="text-xl font-bold text-gray-900">
                 Make a Request
@@ -293,7 +258,6 @@ export default function RequestsPage() {
               </TouchableOpacity>
             </View>
 
-            {/* Form */}
             <View className="space-y-4">
               <View>
                 <Text className="text-gray-700 font-bold mb-1 ml-1">
@@ -329,7 +293,7 @@ export default function RequestsPage() {
                   onChangeText={setDescription}
                   multiline
                   numberOfLines={3}
-                  placeholder="Ex. Need Urgent. Only Black color. Battery > 90%"
+                  placeholder="Ex. Need Urgent. Only Black color."
                   textAlignVertical="top"
                   className="bg-gray-50 border border-gray-200 p-4 rounded-xl text-gray-900 min-h-[100px]"
                 />

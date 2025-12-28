@@ -80,11 +80,6 @@ export const validationService = {
     return { isValid: true };
   },
 
-  /**
-   * Validate entire product form at once
-   * EXTRACTED FROM: upload.tsx lines 97-101
-   * This is the main validation used in handlePost
-   */
   validateProductForm: (data: {
     name: string;
     price: string;
@@ -146,9 +141,6 @@ export const validationService = {
     return { isValid: true };
   },
 
-  /**
-   * Validate market request form
-   */
   validateRequestForm: (data: {
     title: string;
     budget: string;
@@ -160,5 +152,33 @@ export const validationService = {
     if (!budgetCheck.isValid) return budgetCheck;
 
     return { isValid: true };
+  },
+};
+
+export const signupValidation = {
+  validateEmail: (email: string): { valid: boolean; error?: string } => {
+    const trimmed = email.trim().toLowerCase();
+    if (!trimmed) return { valid: false, error: "Email is required" };
+    if (!trimmed.endsWith("@gmail.com")) {
+      return { valid: false, error: "Please use a valid @gmail.com address" };
+    }
+    return { valid: true };
+  },
+
+  validatePhone: (phone: string): { valid: boolean; error?: string; cleaned?: string } => {
+    const cleaned = phone.replace(/[^0-9]/g, "");
+    if (cleaned.length !== 10) {
+      return { valid: false, error: "Phone number must be exactly 10 digits" };
+    }
+    return { valid: true, cleaned };
+  },
+
+  validateRequired: (fields: Record<string, string>): { valid: boolean; error?: string } => {
+    for (const [key, value] of Object.entries(fields)) {
+      if (!value || !value.trim()) {
+        return { valid: false, error: "Please fill in all the details" };
+      }
+    }
+    return { valid: true };
   },
 };

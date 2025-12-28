@@ -23,8 +23,10 @@ export default function DealerLayout() {
 
   if (!user) return <Redirect href="/login" />;
   if (userDoc?.role !== "dealer") return <Redirect href="/" />;
+  if (userDoc?.onboardingStatus === "suspended")
+    return <Redirect href="/(auth)/suspended" />;
   if (userDoc?.onboardingStatus !== "approved")
-    return <Redirect href="/onboarding" />;
+    return <Redirect href="/(auth)/onboarding" />;
 
   return (
     <Tabs
@@ -35,10 +37,7 @@ export default function DealerLayout() {
         tabBarInactiveTintColor: "#8E8E93",
 
         tabBarStyle: {
-          // 3. Dynamically calculate height and padding
-          // Base height (60) + the safe area bottom inset
           height: 60 + insets.bottom,
-          // Use the safe area inset for padding, with a fallback for devices without insets (like older Androids)
           paddingBottom: insets.bottom, 
           paddingTop: 6,
           backgroundColor: "#fff",

@@ -1,12 +1,9 @@
-// app/onboarding.tsx
+// app/suspended.tsx
+import { auth } from "@/FirebaseConfig";
 import { useAuth } from "@/src/context/AuthContext";
-import { authApi } from "@/src/services/api/authApi";
 import { Ionicons } from "@expo/vector-icons";
 import { Redirect, useRouter } from "expo-router";
-import { useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
   Linking,
   StatusBar,
   Text,
@@ -17,34 +14,24 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 const SUPPORT_PHONE = "+919876543210";
 const SUPPORT_EMAIL = "support@yourcompany.com";
-const WHATSAPP_MSG = "Hello, I am waiting for my account approval. My Shop Name is: ";
 
-export default function Onboarding() {
+export default function Suspended() {
   const { user, userDoc } = useAuth();
   const router = useRouter();
-  const [submitting, setSubmitting] = useState(false);
 
   if (!user) return <Redirect href="/login" />;
-  if (userDoc?.onboardingStatus === "approved") {
+  if (userDoc?.onboardingStatus !== "suspended") {
     return <Redirect href="/" />;
   }
 
-  const submitForApproval = async () => {
-    setSubmitting(true);
-    try {
-      await authApi.submitForApproval(user.uid);
-    } catch (error) {
-      Alert.alert("Error", "Could not submit request. Try again.");
-    } finally {
-      setSubmitting(false);
-    }
+  const handleLogout = async () => {
+    await auth.signOut();
+    router.replace("/login");
   };
 
   const handleWhatsApp = () => {
-    let url = `whatsapp://send?text=${WHATSAPP_MSG}&phone=${SUPPORT_PHONE}`;
-    Linking.openURL(url).catch(() => {
-      Alert.alert("Error", "WhatsApp is not installed on this device");
-    });
+    const msg = `Hello, my account has been suspended. Support ID: ${user.uid.slice(0, 8)}`;
+    Linking.openURL(`whatsapp://send?text=${encodeURIComponent(msg)}&phone=${SUPPORT_PHONE}`);
   };
 
   const handleCall = () => {
@@ -52,56 +39,33 @@ export default function Onboarding() {
   };
 
   const handleEmail = () => {
-    Linking.openURL(`mailto:${SUPPORT_EMAIL}`);
+    const subject = "Account Suspended - Support Request";
+    const body = `Support ID: ${user.uid.slice(0, 8)}\n\nMy account has been suspended. Please help.`;
+    Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
   };
-
-  const isSubmitted = userDoc?.onboardingStatus === "submitted";
 
   return (
     <SafeAreaView className="flex-1 bg-white">
       <StatusBar barStyle="dark-content" />
       <View className="flex-1 px-6 justify-center items-center">
+        
         <View className="items-center mb-10">
-          <View
-            className={`w-24 h-24 rounded-full items-center justify-center mb-6 ${isSubmitted ? "bg-indigo-50" : "bg-yellow-50"}`}
-          >
-            <Ionicons
-              name={isSubmitted ? "hourglass-outline" : "alert-circle-outline"}
-              size={48}
-              color={isSubmitted ? "#4F46E5" : "#D97706"}
-            />
+          <View className="w-24 h-24 rounded-full bg-red-50 items-center justify-center mb-6">
+            <Ionicons name="ban-outline" size={48} color="#DC2626" />
           </View>
 
           <Text className="text-2xl font-bold text-gray-900 text-center mb-2">
-            {isSubmitted ? "Verification in Progress" : "Action Required"}
+            Account Suspended
           </Text>
 
           <Text className="text-gray-500 text-center text-base px-4 leading-6">
-            {isSubmitted
-              ? "Thanks for signing up! We are currently reviewing your dealership details. This usually takes 2-4 hours."
-              : "Please submit your profile for admin verification to start using the app."}
+            Your account has been temporarily suspended. Please contact support to resolve this issue and restore access.
           </Text>
         </View>
 
-        {!isSubmitted && (
-          <TouchableOpacity
-            onPress={submitForApproval}
-            disabled={submitting}
-            className="w-full bg-indigo-600 py-4 rounded-xl shadow-md mb-10"
-          >
-            {submitting ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text className="text-white text-center font-bold text-lg">
-                Submit for Approval
-              </Text>
-            )}
-          </TouchableOpacity>
-        )}
-
-        <View className="w-full bg-gray-50 rounded-2xl p-6 border border-gray-100">
+        <View className="w-full bg-gray-50 rounded-2xl p-6 border border-gray-100 mb-6">
           <Text className="text-gray-800 font-bold mb-4 text-center">
-            Need help or urgent approval?
+            Contact Support
           </Text>
 
           <View className="flex-row justify-between items-center px-2">
@@ -134,14 +98,14 @@ export default function Onboarding() {
           </View>
         </View>
 
-        <View className="mt-4 pt-4">
-          <Text
-            className="text-center text-gray-400 text-xs underline"
-            onPress={() => router.replace("/login")}
-          >
-            Back To Login
+        <TouchableOpacity
+          onPress={handleLogout}
+          className="w-full bg-gray-200 py-4 rounded-xl"
+        >
+          <Text className="text-gray-800 text-center font-bold text-base">
+            Logout
           </Text>
-        </View>
+        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );

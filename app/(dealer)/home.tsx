@@ -112,10 +112,6 @@ export default function DealerHome() {
     [REEL_HEIGHT, handleProfilePress, handleImagePress]
   );
 
-  // ========================================
-  // UI ONLY FROM HERE - NO LOGIC!
-  // ========================================
-
   return (
     <SafeAreaView className="flex-1 bg-white" edges={["top"]}>
       <StatusBar barStyle="dark-content" />
@@ -291,8 +287,3 @@ export default function DealerHome() {
     </SafeAreaView>
   );
 }
-
-// ✨ TRANSFORMATION COMPLETE ✨
-// Before: 550+ lines (mixed UI + Firebase + logic)
-// After: 200 lines (UI only!)
-// Reduction: 64% smaller + 100% cleaner!
