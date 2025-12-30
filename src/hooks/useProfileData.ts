@@ -1,8 +1,9 @@
 // src/hooks/useProfileData.ts
 // Profile data fetching with real-time updates
-// EXTRACTED FROM: profile.tsx lines 158-187
 
+import { db } from "@/FirebaseConfig";
 import { profileApi } from "@/src/services/api/profileApi";
+import { collection, documentId, onSnapshot, query, where } from "firebase/firestore";
 import { useEffect, useState } from "react";
 
 interface UseProfileDataReturn {
@@ -12,30 +13,13 @@ interface UseProfileDataReturn {
   loading: boolean;
 }
 
-/**
- * Hook for fetching profile data with real-time updates
- * EXTRACTED FROM: profile.tsx
- * - Lines 158-161: State declarations
- * - Lines 162-176: Profile subscription
- * - Lines 178-187: Connections subscription
- */
 export function useProfileData(userId: string | undefined): UseProfileDataReturn {
-  // STATE
-  // EXTRACTED FROM: profile.tsx lines 158-161
-  
-  // LINE 158: const [listings, setListings] = useState<any[]>([]);
   const [listings, setListings] = useState<any[]>([]);
-  
-  // LINE 159: const [profileData, setProfileData] = useState<any>(null);
   const [profileData, setProfileData] = useState<any>(null);
-  
-  // LINE 160: const [connectionsUsers, setConnectionsUsers] = useState<any[]>([]);
   const [connectionsUsers, setConnectionsUsers] = useState<any[]>([]);
-  
   const [loading, setLoading] = useState(true);
 
-  // PROFILE SUBSCRIPTION
-  // EXTRACTED FROM: profile.tsx lines 162-176
+  // 1. PROFILE & LISTINGS SUBSCRIPTION
   useEffect(() => {
     if (!userId) {
       setLoading(false);
@@ -45,16 +29,11 @@ export function useProfileData(userId: string | undefined): UseProfileDataReturn
     console.log("🔌 Setting up profile subscription...");
     setLoading(true);
 
-    // LINE 164-176: Subscribe to profile updates
     const unsubscribe = profileApi.subscribeToProfile(
       userId,
       (data, fetchedListings) => {
-        // LINE 169: setProfileData(data);
         setProfileData(data);
-        
-        // LINE 170: setListings([...(data.listings || [])].reverse());
         setListings(fetchedListings);
-        
         setLoading(false);
       },
       (error) => {
@@ -63,44 +42,55 @@ export function useProfileData(userId: string | undefined): UseProfileDataReturn
       }
     );
 
-    // LINE 175: Cleanup
     return () => {
-      console.log("🔌 Cleaning up profile subscription...");
       unsubscribe();
     };
   }, [userId]);
 
-  // CONNECTIONS SUBSCRIPTION
-  // EXTRACTED FROM: profile.tsx lines 178-187
+  // 2. CONNECTIONS SUBSCRIPTION (The New Way)
+  // We listen to the 'friendships' collection instead of the user document array
   useEffect(() => {
-    // LINE 179-181: Check if connections exist
-    if (!profileData?.connections?.length) {
-      setConnectionsUsers([]);
-      return;
-    }
+    if (!userId) return;
 
-    console.log("👥 Setting up connections subscription...");
+    console.log("👥 Setting up real-time connections listener...");
 
-    // LINE 184-186: Subscribe to connections
-    const unsubscribe = profileApi.subscribeToConnections(
-      profileData.connections,
-      (users) => {
-        // LINE 185: setConnectionsUsers(...)
-        setConnectionsUsers(users);
-      },
-      (error) => {
-        console.error("Connections subscription error:", error);
-      }
+    const q = query(
+      collection(db, "friendships"),
+      where("users", "array-contains", userId),
+      where("status", "==", "accepted")
     );
 
-    // Cleanup
-    return () => {
-      if (unsubscribe) {
-        console.log("👥 Cleaning up connections subscription...");
-        unsubscribe();
+    const unsubscribe = onSnapshot(q, async (snapshot) => {
+      // A. Extract Friend IDs
+      const friendIds = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return data.users.find((id: string) => id !== userId);
+      });
+
+      if (friendIds.length === 0) {
+        setConnectionsUsers([]);
+        return;
       }
+
+      try {
+        const usersQuery = query(
+          collection(db, "users"),
+          where(documentId(), "in", friendIds.slice(0, 10)) // Limit 10 for 'in' query safety
+        );
+
+        const usersUnsub = onSnapshot(usersQuery, (userSnap) => {
+           const users = userSnap.docs.map(d => d.data());
+           setConnectionsUsers(users);
+        });
+      } catch (error) {
+        console.error("Error fetching connection profiles:", error);
+      }
+    });
+
+    return () => {
+      unsubscribe();
     };
-  }, [profileData?.connections]);
+  }, [userId]);
 
   return {
     profileData,

@@ -1,150 +1,117 @@
 // src/hooks/useConnectionRequests.ts
-// Manages connection request notifications - FIXED
-
-import { connectionApi } from "@/src/services/api/connectionApi";
-import { userApi } from "@/src/services/api/userApi";
-import type { UserProfile } from "@/src/types"; // ✅ FIXED: Import from types
-import { useCallback, useEffect, useState } from "react";
+import { db } from "@/FirebaseConfig"; // Adjust path if needed
+import { publicProfileApi } from "@/src/services/api/publicProfileApi"; // Use our new API
+import type { UserProfile } from "@/src/types";
+import { collection, documentId, getDocs, onSnapshot, query, where } from "firebase/firestore";
+import { useEffect, useState } from "react";
 import { Alert } from "react-native";
 
 interface UseConnectionRequestsReturn {
   requestUsers: UserProfile[];
   loading: boolean;
-  processingId: string | null;
-  acceptRequest: (targetUid: string) => Promise<void>;
-  rejectRequest: (targetUid: string) => Promise<void>;
-  refreshRequests: () => Promise<void>;
+  acceptRequest: (senderId: string) => Promise<void>;
+  rejectRequest: (senderId: string) => Promise<void>;
 }
 
 export function useConnectionRequests(
-  currentUserId: string | undefined,
-  requestReceivedIds: string[] | undefined
+  currentUserId: string | undefined
 ): UseConnectionRequestsReturn {
   const [requestUsers, setRequestUsers] = useState<UserProfile[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [processingId, setProcessingId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  /**
-   * Fetch user profiles for connection requests
-   */
-  const fetchRequestProfiles = useCallback(
-    async (forceRefresh: boolean = false) => {
-      if (!currentUserId) return;
+  // 1. Real-time Listener for Pending Requests
+  useEffect(() => {
+    if (!currentUserId) {
+      setLoading(false);
+      return;
+    }
 
-      let currentRequestIds = requestReceivedIds || [];
+    setLoading(true);
 
-      // If force refresh, get fresh data from Firebase
-      if (forceRefresh) {
-        try {
-          setLoading(true);
-          const freshData = await userApi.getFreshUserData(currentUserId);
-          if (freshData) {
-            currentRequestIds = freshData.requestReceived || [];
-          }
-        } catch (e) {
-          console.error("Error fetching fresh user doc:", e);
-          setLoading(false);
-          return;
-        }
-      }
+    // Query: "Show me all friendships where I am the receiver AND status is pending"
+    const q = query(
+      collection(db, "friendships"),
+      where("receiverId", "==", currentUserId),
+      where("status", "==", "pending")
+    );
 
-      // No requests
-      if (currentRequestIds.length === 0) {
+    const unsubscribe = onSnapshot(q, async (snapshot) => {
+      const senderIds = snapshot.docs.map(doc => doc.data().senderId);
+
+      if (senderIds.length === 0) {
         setRequestUsers([]);
         setLoading(false);
         return;
       }
 
+      // 2. Fetch the Profiles of the people sending requests
       try {
-        // Fetch user profiles (max 10 due to Firebase 'in' limit)
-        const users = await userApi.getUsersByIds(currentRequestIds);
-        setRequestUsers(users);
-      } catch (e) {
-        console.error("Error fetching request profiles:", e);
+        // We handle the "in" query limit of 10 items
+        const chunks = [];
+        for (let i = 0; i < senderIds.length; i += 10) {
+           chunks.push(senderIds.slice(i, i + 10));
+        }
+
+        const allUsers: UserProfile[] = [];
+
+        for (const chunk of chunks) {
+           const usersQuery = query(
+             collection(db, "users"),
+             where(documentId(), "in", chunk)
+           );
+           const userSnaps = await getDocs(usersQuery);
+           userSnaps.forEach(doc => allUsers.push(doc.data() as UserProfile));
+        }
+
+        setRequestUsers(allUsers);
+      } catch (error) {
+        console.error("Error fetching request profiles:", error);
       } finally {
         setLoading(false);
       }
-    },
-    [currentUserId, requestReceivedIds]
-  );
+    });
 
-  // Auto-fetch when requestReceivedIds changes
-  useEffect(() => {
-    fetchRequestProfiles(false);
-  }, [fetchRequestProfiles]);
+    return () => unsubscribe();
+  }, [currentUserId]);
 
-  /**
-   * Refresh notifications (with force refresh)
-   */
-  const refreshRequests = async () => {
-    setLoading(true);
-    await fetchRequestProfiles(true);
-  };
+  // 3. Accept Logic
+  const acceptRequest = async (senderId: string) => {
+    if (!currentUserId) return;
 
-  /**
-   * Accept connection request
-   */
-  const acceptRequest = async (targetUid: string) => {
-    if (!currentUserId || !targetUid) return;
-
-    // Optimistic update - remove from UI immediately
-    setRequestUsers((currentList) =>
-      currentList.filter((u) => u.uid !== targetUid)
-    );
-
-    setProcessingId(targetUid);
+    // Optimistic Update: Remove from list instantly
+    setRequestUsers(prev => prev.filter(u => u.uid !== senderId));
 
     try {
-      await connectionApi.acceptRequest(currentUserId, targetUid);
+      await publicProfileApi.acceptConnectionRequest(currentUserId, senderId);
       console.log("✅ Connection accepted");
-
     } catch (error) {
-      console.error("Error accepting request:", error);
+      console.error("Error accepting:", error);
       Alert.alert("Error", "Could not accept request.");
-
-      // Revert optimistic update on error
-      await fetchRequestProfiles(true);
-
-    } finally {
-      setProcessingId(null);
+      // The listener will automatically fix the list if it fails, so no need to manually revert
     }
   };
 
-  /**
-   * Reject connection request
-   */
-  const rejectRequest = async (targetUid: string) => {
+  // 4. Reject Logic
+  const rejectRequest = async (senderId: string) => {
     if (!currentUserId) return;
 
-    // Optimistic update - remove from UI immediately
-    setRequestUsers((currentList) =>
-      currentList.filter((u) => u.uid !== targetUid)
-    );
-
-    setProcessingId(targetUid);
+    // Optimistic Update
+    setRequestUsers(prev => prev.filter(u => u.uid !== senderId));
 
     try {
-      await connectionApi.rejectRequest(currentUserId, targetUid);
+      // Rejection is the same as cancelling/deleting the request
+      await publicProfileApi.cancelConnectionRequest(currentUserId, senderId);
       console.log("✅ Connection rejected");
-
     } catch (error) {
-      console.error("Error rejecting request:", error);
+      console.error("Error rejecting:", error);
       Alert.alert("Error", "Could not reject request.");
-
-      // Revert optimistic update on error
-      await fetchRequestProfiles(true);
-
-    } finally {
-      setProcessingId(null);
     }
   };
 
   return {
     requestUsers,
     loading,
-    processingId,
     acceptRequest,
     rejectRequest,
-    refreshRequests,
   };
 }

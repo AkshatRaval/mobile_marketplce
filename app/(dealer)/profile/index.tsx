@@ -1,8 +1,8 @@
-// app/profile.tsx
-// ✨ REFACTORED - UI PRESERVED, LOGIC EXTRACTED ✨
-// BEFORE: 479 lines with mixed logic
-// AFTER: 310 lines - UI only!
-
+import { FeedProductCard } from "@/src/components/FeedProductCard";
+import { useAuth } from "@/src/context/AuthContext";
+import { useProfileActions } from "@/src/hooks/useProfileActions";
+import { useProfileData } from "@/src/hooks/useProfileData";
+import { getMainImage } from "@/src/utils/helpers";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
@@ -18,16 +18,9 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-
-// ✅ Import hooks and components - all logic is here now!
-import { FeedProductCard } from "@/src/components/FeedProductCard";
-import { useAuth } from "@/src/context/AuthContext";
-import { useProfileActions } from "@/src/hooks/useProfileActions";
-import { useProfileData } from "@/src/hooks/useProfileData";
-import { getMainImage } from "@/src/utils/helpers";
 
 // CONSTANTS
 const { width: SCREEN_WIDTH, height: WINDOW_HEIGHT } = Dimensions.get("window");
@@ -39,17 +32,15 @@ export default function Profile() {
   const insets = useSafeAreaInsets();
 
   // ✅ ALL DATA FETCHING IN HOOK
-  // EXTRACTED FROM: profile.tsx lines 158-187
   const { profileData, listings, connectionsUsers } = useProfileData(user?.uid);
 
   // ✅ ALL ACTIONS IN HOOK
-  // EXTRACTED FROM: profile.tsx lines 238-296
   const { loading, deleteProduct, updateProduct, logout } = useProfileActions(
     user?.uid,
     profileData
   );
 
-  // UI STATE ONLY (stays here)
+  // UI STATE ONLY
   const [feedVisible, setFeedVisible] = useState(false);
   const [initialFeedIndex, setInitialFeedIndex] = useState(0);
   const [reelHeight, setReelHeight] = useState(WINDOW_HEIGHT);
@@ -62,8 +53,6 @@ export default function Profile() {
   const [editPrice, setEditPrice] = useState("");
   const [editDescription, setEditDescription] = useState("");
 
-  // ✅ SIMPLE HANDLERS - Just call hooks
-  
   const openFeedAtIndex = (index: number) => {
     setInitialFeedIndex(index);
     setFeedVisible(true);
@@ -79,16 +68,11 @@ export default function Profile() {
 
   const handleDeleteListing = async () => {
     if (!selectedItem) return;
-
-    // Get product images for Cloudinary deletion
     const productImages = selectedItem.images || [];
-
     const success = await deleteProduct(selectedItem.id, productImages);
     
     if (success) {
       setIsOptionsVisible(false);
-      
-      // Close feed if no more listings
       if (listings.length <= 1) {
         setFeedVisible(false);
       }
@@ -97,7 +81,6 @@ export default function Profile() {
 
   const handleSaveEdit = async () => {
     if (!selectedItem) return;
-
     const success = await updateProduct(selectedItem.id, {
       name: editName,
       price: editPrice,
@@ -111,7 +94,7 @@ export default function Profile() {
   };
 
   // ========================================
-  // UI ONLY FROM HERE - NO BACKEND LOGIC!
+  // UI ONLY FROM HERE
   // ========================================
 
   const ListHeader = () => (
@@ -163,7 +146,7 @@ export default function Profile() {
             >
               <View>
                 <Text className="text-lg font-black text-indigo-600 leading-tight">
-                  {profileData?.connections?.length || 0}
+                  {connectionsUsers.length}
                 </Text>
                 <Text className="text-[9px] font-bold text-gray-900 uppercase tracking-widest">
                   Circle
@@ -186,10 +169,12 @@ export default function Profile() {
             data={connectionsUsers}
             horizontal
             showsHorizontalScrollIndicator={false}
-            keyExtractor={(item) => item.uid}
+            // ✅ CRITICAL FIX: Fallback key extractor ensures no crash if uid is missing
+            keyExtractor={(item, index) => item.uid || String(index)}
             renderItem={({ item }) => (
               <TouchableOpacity
-                onPress={() => router.push(`/(dealer)/profile/${item.uid}`)}
+                // ✅ Safety Check: Only navigate if UID exists
+                onPress={() => item.uid && router.push(`/(dealer)/profile/${item.uid}`)}
                 className="mr-4 items-center"
               >
                 <Image
@@ -306,11 +291,11 @@ export default function Profile() {
       {/* OPTIONS DROPDOWN */}
       {isOptionsVisible && (
         <Modal transparent animationType="fade" visible={isOptionsVisible}>
-          <Pressable 
+          <Pressable
             onPress={() => setIsOptionsVisible(false)}
             className="flex-1 relative"
           >
-            <View 
+            <View
               className="absolute bottom-24 right-5 bg-white w-48 rounded-xl shadow-2xl overflow-hidden py-2"
               style={{ elevation: 10 }}
             >
@@ -347,7 +332,7 @@ export default function Profile() {
             <Text className="text-xl font-black text-center mb-6">
               Edit Listing
             </Text>
-            
+
             <ScrollView showsVerticalScrollIndicator={false}>
               <Text className="text-gray-500 font-bold mb-1 ml-1 text-xs uppercase">
                 Product Name

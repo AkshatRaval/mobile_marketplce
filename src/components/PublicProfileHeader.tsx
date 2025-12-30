@@ -1,30 +1,30 @@
 // src/components/PublicProfileHeader.tsx
-// UPDATED - Now shows connections
 
 import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
 import React from "react";
 import {
   ActivityIndicator,
   Image,
-  ScrollView,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
 
+// ✅ 1. Defined the type here to prevent errors
+export type ConnectionStatus = "none" | "pending" | "connected" | "received";
+
 interface PublicProfileHeaderProps {
   dealerData: any;
   connections: any[];
   inventoryCount: number;
-  requestStatus: "none" | "pending" | "connected";
+  requestStatus: ConnectionStatus; // <--- Updated Type
   processing: boolean;
   onWhatsAppPress: () => void;
   onConnectPress: () => void;
-  onConnectionPress: (userId: string) => void;
+  onConnectionPress: (id: string) => void;
 }
 
-export const PublicProfileHeader: React.FC<PublicProfileHeaderProps> = ({
+export function PublicProfileHeader({
   dealerData,
   connections,
   inventoryCount,
@@ -33,205 +33,142 @@ export const PublicProfileHeader: React.FC<PublicProfileHeaderProps> = ({
   onWhatsAppPress,
   onConnectPress,
   onConnectionPress,
-}) => {
-  if (!dealerData) return null;
+}: PublicProfileHeaderProps) {
+  
+  // ✅ 2. Button Logic (Handles all 4 states)
+  const getButtonConfig = () => {
+    switch (requestStatus) {
+      case "connected":
+        return {
+          text: "Connected",
+          bg: "bg-green-100",
+          textColor: "text-green-700",
+          icon: "checkmark-circle" as const,
+        };
+      case "pending":
+        return {
+          text: "Requested",
+          bg: "bg-gray-100",
+          textColor: "text-gray-500",
+          icon: "time-outline" as const,
+        };
+      case "received": // <--- New "Accept" State
+        return {
+          text: "Accept Request",
+          bg: "bg-blue-600",
+          textColor: "text-white",
+          icon: "person-add-outline" as const,
+        };
+      default: // 'none'
+        return {
+          text: "Connect",
+          bg: "bg-black",
+          textColor: "text-white",
+          icon: "add-circle-outline" as const,
+        };
+    }
+  };
 
-  const displayName = dealerData.displayName || "Dealer";
-  const shopName = dealerData.shopName || displayName;
-  const city = dealerData.city || "Global";
-  const photoURL = dealerData.photoURL || `https://ui-avatars.com/api/?name=${displayName}`;
-  const connectionsCount = dealerData.connections?.length || 0;
+  const btn = getButtonConfig();
 
   return (
-    <View>
-      {/* Gradient Banner */}
-      <View style={{ height: 140, width: '100%', overflow: 'hidden' }}>
-        <LinearGradient
-          colors={["#4F46E5", "#818CF8"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={{ width: '100%', height: '100%' }}
+    <View className="bg-white p-6 pb-4 rounded-b-3xl shadow-sm mb-4">
+      {/* Profile Info */}
+      <View className="flex-row items-center">
+        <Image
+          source={{
+            uri:
+              dealerData.photoURL ||
+              `https://ui-avatars.com/api/?name=${dealerData.displayName}`,
+          }}
+          className="w-20 h-20 rounded-full bg-gray-200"
         />
-      </View>
-
-      {/* Profile Card */}
-      <View style={{ marginHorizontal: 20, marginTop: -64, backgroundColor: 'white', borderRadius: 24, padding: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 5 }}>
-        
-        {/* Profile Photo */}
-        <View style={{ alignItems: 'center', marginBottom: 16 }}>
-          <Image
-            source={{ uri: photoURL }}
-            style={{ width: 96, height: 96, borderRadius: 48, borderWidth: 4, borderColor: 'white', marginTop: -64, backgroundColor: '#E5E7EB' }}
-          />
-        </View>
-
-        {/* Name and Verification */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 4 }}>
-          <Text style={{ fontSize: 24, fontWeight: '900', color: '#111827', textAlign: 'center' }}>
-            {shopName}
+        <View className="ml-4 flex-1">
+          <Text className="text-xl font-bold text-gray-900">
+            {dealerData.displayName}
           </Text>
-          <Ionicons name="checkmark-circle" size={20} color="#4F46E5" style={{ marginLeft: 6 }} />
-        </View>
-
-        {/* Username and Location */}
-        <Text style={{ fontSize: 14, color: '#6B7280', fontWeight: '500', textAlign: 'center', marginBottom: 16 }}>
-          @{displayName.replace(/\s/g, "").toLowerCase()} • {city}
-        </Text>
-
-        {/* Stats */}
-        <View style={{ flexDirection: 'row', backgroundColor: '#F9FAFB', borderRadius: 16, paddingVertical: 16, paddingHorizontal: 24, marginBottom: 20 }}>
-          <View style={{ flex: 1, alignItems: 'center' }}>
-            <Text style={{ fontSize: 20, fontWeight: '900', color: '#111827' }}>
-              {inventoryCount}
-            </Text>
-            <Text style={{ fontSize: 10, fontWeight: '700', color: '#9CA3AF', textTransform: 'uppercase', marginTop: 4 }}>
-              Items
-            </Text>
+          <Text className="text-gray-500 text-sm">
+            {dealerData.location || "Location not available"}
+          </Text>
+          <View className="flex-row mt-2 gap-4">
+            <View>
+              <Text className="font-bold text-gray-900">{inventoryCount}</Text>
+              <Text className="text-xs text-gray-500">Items</Text>
+            </View>
+            <View>
+              <Text className="font-bold text-gray-900">
+                {connections?.length || 0}
+              </Text>
+              <Text className="text-xs text-gray-500">Connections</Text>
+            </View>
           </View>
-          <View style={{ width: 1, backgroundColor: '#E5E7EB', marginHorizontal: 8 }} />
-          <View style={{ flex: 1, alignItems: 'center' }}>
-            <Text style={{ fontSize: 20, fontWeight: '900', color: '#4F46E5' }}>
-              {connectionsCount}
-            </Text>
-            <Text style={{ fontSize: 10, fontWeight: '700', color: '#9CA3AF', textTransform: 'uppercase', marginTop: 4 }}>
-              Circle
-            </Text>
-          </View>
-          <View style={{ width: 1, backgroundColor: '#E5E7EB', marginHorizontal: 8 }} />
-          <View style={{ flex: 1, alignItems: 'center' }}>
-            <Text style={{ fontSize: 20, fontWeight: '900', color: '#10B981' }}>
-              Open
-            </Text>
-            <Text style={{ fontSize: 10, fontWeight: '700', color: '#9CA3AF', textTransform: 'uppercase', marginTop: 4 }}>
-              Status
-            </Text>
-          </View>
-        </View>
-
-        {/* Action Buttons */}
-        <View style={{ flexDirection: 'row', gap: 12 }}>
-          {/* WhatsApp Button */}
-          <TouchableOpacity
-            onPress={onWhatsAppPress}
-            style={{ flex: 1, backgroundColor: '#22C55E', paddingVertical: 14, borderRadius: 12, flexDirection: 'row', justifyContent: 'center', alignItems: 'center' }}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="logo-whatsapp" size={18} color="white" style={{ marginRight: 6 }} />
-            <Text style={{ color: 'white', fontWeight: '700', fontSize: 14 }}>WhatsApp</Text>
-          </TouchableOpacity>
-
-          {/* Connect Button */}
-          <TouchableOpacity
-            onPress={onConnectPress}
-            disabled={processing || requestStatus === "connected"}
-            style={{
-              flex: 1,
-              paddingVertical: 14,
-              borderRadius: 12,
-              flexDirection: 'row',
-              justifyContent: 'center',
-              alignItems: 'center',
-              borderWidth: 1,
-              backgroundColor:
-                requestStatus === "connected"
-                  ? "#DCFCE7"
-                  : requestStatus === "pending"
-                  ? "#FEF3C7"
-                  : "#111827",
-              borderColor:
-                requestStatus === "connected"
-                  ? "#BBF7D0"
-                  : requestStatus === "pending"
-                  ? "#FDE68A"
-                  : "#111827",
-            }}
-            activeOpacity={0.8}
-          >
-            {processing ? (
-              <ActivityIndicator color={requestStatus === "none" ? "white" : "gray"} size="small" />
-            ) : (
-              <>
-                <Ionicons
-                  name={
-                    requestStatus === "connected"
-                      ? "checkmark"
-                      : requestStatus === "pending"
-                      ? "time"
-                      : "person-add"
-                  }
-                  size={18}
-                  color={
-                    requestStatus === "none"
-                      ? "white"
-                      : requestStatus === "connected"
-                      ? "#16A34A"
-                      : "#CA8A04"
-                  }
-                  style={{ marginRight: 6 }}
-                />
-                <Text
-                  style={{
-                    fontWeight: '700',
-                    fontSize: 14,
-                    color:
-                      requestStatus === "connected"
-                        ? "#15803D"
-                        : requestStatus === "pending"
-                        ? "#A16207"
-                        : "white",
-                  }}
-                >
-                  {requestStatus === "connected"
-                    ? "Connected"
-                    : requestStatus === "pending"
-                    ? "Pending"
-                    : "Connect"}
-                </Text>
-              </>
-            )}
-          </TouchableOpacity>
         </View>
       </View>
 
-      {/* Connections Section */}
-      {connections.length > 0 && (
-        <View style={{ marginTop: 20, paddingLeft: 24 }}>
-          <Text style={{ fontSize: 14, fontWeight: '700', color: '#111827', marginBottom: 12 }}>
-            Their Connections
-          </Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingRight: 24 }}
-          >
-            {connections.map((connection) => (
+      {/* Action Buttons */}
+      <View className="flex-row gap-3 mt-6">
+        <TouchableOpacity
+          onPress={onConnectPress}
+          disabled={processing || requestStatus === "pending"}
+          className={`flex-1 ${btn.bg} py-3 rounded-xl flex-row justify-center items-center`}
+        >
+          {processing ? (
+            <ActivityIndicator
+              color={btn.textColor.includes("white") ? "white" : "black"}
+            />
+          ) : (
+            <>
+              <Ionicons
+                name={btn.icon}
+                size={20}
+                color={btn.textColor.includes("white") ? "white" : "black"}
+              />
+              <Text className={`font-bold ml-2 ${btn.textColor}`}>
+                {btn.text}
+              </Text>
+            </>
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={onWhatsAppPress}
+          className="bg-green-500 w-12 h-12 rounded-xl justify-center items-center"
+        >
+          <Ionicons name="logo-whatsapp" size={24} color="white" />
+        </TouchableOpacity>
+      </View>
+
+      {/* Connections Preview */}
+      {connections && connections.length > 0 && (
+        <View className="mt-6 pt-6 border-t border-gray-100">
+          <Text className="font-bold text-gray-900 mb-3">Connections</Text>
+          <View className="flex-row pl-2">
+            {connections.slice(0, 5).map((friend, index) => (
               <TouchableOpacity
-                key={connection.uid}
-                onPress={() => onConnectionPress(connection.uid)}
-                style={{ marginRight: 16, alignItems: 'center' }}
+                key={friend.uid || index}
+                onPress={() => onConnectionPress(friend.uid)}
+                className="-ml-3 first:ml-0 border-2 border-white rounded-full"
               >
                 <Image
                   source={{
-                    uri: connection.photoURL || `https://ui-avatars.com/api/?name=${connection.displayName}`,
+                    uri:
+                      friend.photoURL ||
+                      `https://ui-avatars.com/api/?name=${friend.displayName}`,
                   }}
-                  style={{ width: 56, height: 56, borderRadius: 28, borderWidth: 1, borderColor: '#E5E7EB', backgroundColor: '#F3F4F6' }}
+                  className="w-10 h-10 rounded-full bg-gray-200"
                 />
-                <Text
-                  numberOfLines={1}
-                  style={{ fontSize: 10, color: '#6B7280', marginTop: 4, width: 56, textAlign: 'center' }}
-                >
-                  {connection.displayName}
-                </Text>
               </TouchableOpacity>
             ))}
-          </ScrollView>
+            {connections.length > 5 && (
+              <View className="-ml-3 w-10 h-10 rounded-full bg-gray-100 border-2 border-white justify-center items-center">
+                <Text className="text-xs font-bold text-gray-500">
+                  +{connections.length - 5}
+                </Text>
+              </View>
+            )}
+          </View>
         </View>
       )}
-
-      {/* Section Title */}
-      <Text style={{ fontSize: 18, fontWeight: '900', color: '#111827', marginHorizontal: 24, marginTop: 24, marginBottom: 16 }}>
-        Inventory ({inventoryCount})
-      </Text>
     </View>
   );
-};
+}

@@ -1,6 +1,3 @@
-// app/profile/[id].tsx
-// UPDATED - Now shows and navigates to connections
-
 import { ProductGridItem } from "@/src/components/ProductGridItem";
 import { PublicProfileHeader } from "@/src/components/PublicProfileHeader";
 import { useAuth } from "@/src/context/AuthContext";
@@ -31,18 +28,22 @@ export default function PublicDealerProfile() {
   const { user } = useAuth();
   const router = useRouter();
 
-  const { dealerData, inventory, connections, loading } = usePublicProfile(id);
-  const { status: requestStatus } = useConnectionStatus(user?.uid, id);
-  const { processing, handleConnect } = useConnectionActions(user?.uid, id);
+  // 1. Data Fetching (Added safe default for connections)
+  const { dealerData, inventory, connections = [], loading } = usePublicProfile(id);
+
+  // 2. Logic (Safe ID handling)
+  const targetId = Array.isArray(id) ? id[0] : id;
+  const { status: requestStatus } = useConnectionStatus(user?.uid, targetId);
+  const { processing, handleConnect } = useConnectionActions(user?.uid, targetId);
 
   const [isViewerVisible, setIsViewerVisible] = useState(false);
   const [activeProduct, setActiveProduct] = useState<any>(null);
 
   useEffect(() => {
-    if (user && id === user.uid) {
-      router.replace("/profile");
+    if (user && targetId === user.uid) {
+      router.replace("/(dealer)/profile");
     }
-  }, [id, user]);
+  }, [targetId, user]);
 
   const handleWhatsAppPress = () => {
     communications.openWhatsApp(dealerData?.phoneNumber);
@@ -64,12 +65,16 @@ export default function PublicDealerProfile() {
     }
   };
 
+  // ✅ FIXED NAVIGATION PATH
   const handleConnectionPress = (userId: string) => {
     console.log("Connection pressed:", userId);
     if (userId === user?.uid) {
-      router.push("/profile");
+      router.push("/(dealer)/profile");
     } else {
-      router.push(`/profile/${userId}`);
+      router.push({
+        pathname: "/(dealer)/profile/[id]",
+        params: { id: userId }
+      });
     }
   };
 
@@ -183,15 +188,13 @@ export default function PublicDealerProfile() {
       </ScrollView>
 
       {/* Image Viewer */}
-      {activeProduct && activeProduct.images && activeProduct.images.length > 0 && (
-        <ImageView
-          images={activeProduct.images.map((uri: string) => ({ uri }))}
-          imageIndex={0}
-          visible={isViewerVisible}
-          onRequestClose={() => setIsViewerVisible(false)}
-          FooterComponent={ViewerFooter}
-        />
-      )}
+      <ImageView
+        images={activeProduct?.images?.map((uri: string) => ({ uri })) || []}
+        imageIndex={0}
+        visible={isViewerVisible}
+        onRequestClose={() => setIsViewerVisible(false)}
+        FooterComponent={ViewerFooter}
+      />
     </SafeAreaView>
   );
 }

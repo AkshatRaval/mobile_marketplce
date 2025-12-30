@@ -168,10 +168,7 @@ export default function AdminDashboard() {
   };
 
   const sendToFirebaseFCM = async (tokens: string[], title: string, body: string) => {
-    // FCM allows sending to up to 1000 tokens in one request using 'registration_ids'
-    // If you have >1000 users, you need to chunk this array.
-    
-    const response = await fetch('https://fcm.googleapis.com/fcm/send', {
+      const response = await fetch('https://fcm.googleapis.com/fcm/send', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

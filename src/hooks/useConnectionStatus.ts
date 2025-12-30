@@ -1,14 +1,13 @@
 // src/hooks/useConnectionStatus.ts
-// Real-time connection status tracking
-// EXTRACTED FROM: profile/[id].tsx lines 64-87
-
 import { publicProfileApi } from "@/src/services/api/publicProfileApi";
 import { useEffect, useState } from "react";
 
-type ConnectionStatus = "none" | "pending" | "connected";
+export type ConnectionStatus = "none" | "pending" | "connected" | "received";
 
 interface UseConnectionStatusReturn {
   status: ConnectionStatus;
+  loading: boolean;
+  setStatus: React.Dispatch<React.SetStateAction<ConnectionStatus>>;
 }
 
 export function useConnectionStatus(
@@ -16,14 +15,17 @@ export function useConnectionStatus(
   dealerId: string | string[] | undefined
 ): UseConnectionStatusReturn {
   const [status, setStatus] = useState<ConnectionStatus>("none");
+  const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
+    // If IDs are missing, stop here
     if (!currentUserId || !dealerId) {
-      console.log("⚠️ Missing userId or dealerId for connection status");
+      setLoading(false);
       return;
     }
 
     const id = Array.isArray(dealerId) ? dealerId[0] : dealerId;
+    setLoading(true);
 
     console.log(`🔌 Setting up connection status subscription for ${id}`);
 
@@ -31,19 +33,20 @@ export function useConnectionStatus(
       currentUserId,
       id,
       (newStatus) => {
-        console.log(`📊 Connection status updated: ${newStatus}`);
-        setStatus(newStatus);
+        // newStatus can be 'none' | 'pending' | 'connected' | 'received'
+        setStatus(newStatus as ConnectionStatus);
+        setLoading(false);
       },
       (error) => {
         console.error("❌ Connection status error:", error);
+        setLoading(false);
       }
     );
 
     return () => {
-      console.log("🔌 Cleaning up connection status subscription");
       unsubscribe();
     };
   }, [currentUserId, dealerId]);
 
-  return { status };
+  return { status, loading, setStatus };
 }

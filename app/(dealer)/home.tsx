@@ -1,3 +1,5 @@
+// app/(dealer)/home.tsx (or wherever your Home file is)
+
 import { ProductCard } from "@/src/components/ProductCard";
 import { useAuth } from "@/src/context/AuthContext";
 import { useConnectionRequests } from "@/src/hooks/useConnectionRequests";
@@ -7,7 +9,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
-  ActivityIndicator,
   Dimensions,
   FlatList,
   Image,
@@ -39,29 +40,23 @@ configureReanimatedLogger({
 LogBox.ignoreLogs([
   "[Reanimated] Reading from `value` during component render",
   "[Reanimated] Writing to `value` during component render",
-  "[Reanimated] Reading from `value`",
-  "[Reanimated] Writing to `value`",
-  "Reading from `value` during component render",
-  "Writing to `value` during component render",
 ]);
 
 export default function DealerHome() {
-  const { user, userDoc } = useAuth();
+  const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
-  // ✅ All product fetching logic in hook
+  // ✅ Product Fetching
   const { products, loading: productsLoading, refetch } = useProducts();
 
-  // ✅ All connection request logic in hook
+  // ✅ Connection Requests (FIXED: No longer needs userDoc args)
   const {
     requestUsers,
     loading: requestsLoading,
-    processingId,
     acceptRequest,
     rejectRequest,
-    refreshRequests,
-  } = useConnectionRequests(user?.uid, userDoc?.requestReceived);
+  } = useConnectionRequests(user?.uid);
 
   // Local UI state
   const [isNotifVisible, setIsNotifVisible] = useState(false);
@@ -81,11 +76,10 @@ export default function DealerHome() {
     insets.top -
     insets.bottom;
 
-  // ✅ Simple handlers - no logic, just navigation/UI updates
   const handleProfilePress = useCallback(
     (uid: string) => {
       if (!uid) return;
-      router.push(`/(dealer)/profile/${uid}`);
+      router.push(`/profile/${uid}`); // Ensure this route matches your file structure
     },
     [router]
   );
@@ -128,7 +122,9 @@ export default function DealerHome() {
           className="bg-gray-100 h-10 w-10 rounded-full items-center justify-center relative"
         >
           <Ionicons name="notifications-outline" size={22} color="black" />
-          {(userDoc?.requestReceived?.length || 0) > 0 && (
+          
+          {/* FIXED: Uses requestUsers.length directly */}
+          {requestUsers.length > 0 && (
             <View className="absolute top-2 right-2 w-2.5 h-2.5 bg-red-500 rounded-full border border-white" />
           )}
         </TouchableOpacity>
@@ -213,12 +209,6 @@ export default function DealerHome() {
                 <Text className="mt-4 font-bold text-gray-500">
                   No new requests
                 </Text>
-                <TouchableOpacity
-                  onPress={refreshRequests}
-                  className="mt-4"
-                >
-                  <Text className="text-blue-500 font-bold">Refresh</Text>
-                </TouchableOpacity>
               </View>
             ) : (
               /* REQUEST LIST */
@@ -226,12 +216,7 @@ export default function DealerHome() {
                 data={requestUsers}
                 keyExtractor={(item) => item.uid}
                 contentContainerStyle={{ padding: 24 }}
-                refreshControl={
-                  <RefreshControl
-                    refreshing={requestsLoading}
-                    onRefresh={refreshRequests}
-                  />
-                }
+                // FIXED: Removed refreshControl because the hook is real-time
                 renderItem={({ item }) => (
                   <View className="flex-row items-center mb-6">
                     <Image
@@ -252,7 +237,6 @@ export default function DealerHome() {
                     </View>
                     <View className="flex-row gap-2">
                       <TouchableOpacity
-                        disabled={processingId === item.uid}
                         onPress={() => rejectRequest(item.uid)}
                         className="bg-gray-100 px-4 py-2 rounded-lg"
                       >
@@ -261,17 +245,9 @@ export default function DealerHome() {
                         </Text>
                       </TouchableOpacity>
                       <TouchableOpacity
-                        disabled={processingId === item.uid}
                         onPress={() => acceptRequest(item.uid)}
                         className="bg-black px-4 py-2 rounded-lg flex-row items-center"
                       >
-                        {processingId === item.uid && (
-                          <ActivityIndicator
-                            size="small"
-                            color="white"
-                            className="mr-2"
-                          />
-                        )}
                         <Text className="font-bold text-white text-xs">
                           Confirm
                         </Text>
