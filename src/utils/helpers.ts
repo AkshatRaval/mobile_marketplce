@@ -1,33 +1,27 @@
 // src/utils/helpers.ts
-// General utility functions
+// General utility functions - Backend Agnostic
 // EXTRACTED FROM: profile.tsx lines 34-43
 
 /**
  * Get main image from product
- * EXTRACTED FROM: profile.tsx getMainImage function (lines 37-43)
- * 
- * LINE 38: if (item.images && item.images.length > 0) return item.images[0];
- * LINE 39: if (item.image) return item.image;
- * LINE 40: return null;
  */
 export const getMainImage = (item: any): string | null => {
-  // LINE 38: Check images array first
+  // Check images array first
   if (item.images && item.images.length > 0) {
     return item.images[0];
   }
   
-  // LINE 39: Fallback to single image field
+  // Fallback to single image field
   if (item.image) {
     return item.image;
   }
   
-  // LINE 40: No image found
+  // No image found
   return null;
 };
 
 /**
  * Get word count from text
- * Used in various validation scenarios
  */
 export const getWordCount = (text: string): number => {
   return text.trim().split(/\s+/).filter(Boolean).length;
@@ -42,10 +36,12 @@ export const truncateText = (text: string, maxLength: number): string => {
 };
 
 /**
- * Format price with currency
+ * Format price with currency (Indian Rupee)
  */
 export const formatPrice = (price: string | number): string => {
   const numPrice = typeof price === "string" ? parseFloat(price) : price;
+  // Handle NaN if price is invalid
+  if (isNaN(numPrice)) return "₹0";
   return `₹${numPrice.toLocaleString("en-IN")}`;
 };
 
@@ -53,6 +49,7 @@ export const formatPrice = (price: string | number): string => {
  * Check if image URL is valid
  */
 export const isValidImageUrl = (url: string): boolean => {
+  if (!url) return false;
   return (
     url.startsWith("http://") ||
     url.startsWith("https://") ||

@@ -1,18 +1,6 @@
-import { auth, db } from "@/FirebaseConfig";
+import { supabase } from "@/src/supabaseConfig";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import {
-  addDoc,
-  collection,
-  deleteDoc,
-  doc,
-  getDocs,
-  limit,
-  orderBy,
-  query,
-  setDoc,
-  updateDoc
-} from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -32,8 +20,8 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 // --- CONFIGURATION ---
-// ⚠️ SECURITY WARNING: Storing the Server Key in the frontend is risky for production apps.
-// For a real app, you should move this logic to a Firebase Cloud Function.
+// ⚠️ SECURITY WARNING: Storing the Server Key in the frontend is risky.
+// Move this to a Supabase Edge Function in production.
 const FIREBASE_SERVER_KEY = "PASTE_YOUR_FIREBASE_SERVER_KEY_HERE"; 
 
 // --- TYPES ---
@@ -64,42 +52,72 @@ export default function AdminDashboard() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      console.log("--- 🔄 START FETCHING ADMIN DATA ---");
+      console.log("--- 🔄 START FETCHING ADMIN DATA (Supabase) ---");
 
-      // 1. Fetch Dealers (Users)
-      const usersSnap = await getDocs(query(collection(db, "users"), orderBy("createdAt", "desc")));
-      const usersData = usersSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      setDealers(usersData);
+      // 1. Fetch Dealers (Profiles where role is dealer OR user)
+      // We map snake_case to camelCase for the UI
+      const { data: profiles, error: profilesError } = await supabase
+        .from("profiles")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (profilesError) throw profilesError;
+
+      const formattedDealers = profiles.map(p => ({
+        id: p.id,
+        displayName: p.display_name,
+        shopName: p.shop_name,
+        email: p.email,
+        phone: p.phone,
+        status: p.status || 'active', // assuming you add a status column later
+        role: p.role,
+        fcmToken: p.fcm_token,
+        onboardingStatus: p.onboarding_status,
+        createdAt: new Date(p.created_at).getTime()
+      }));
+
+      setDealers(formattedDealers);
 
       // 2. Fetch Products
-      const productsSnap = await getDocs(query(collection(db, "products"), orderBy("createdAt", "desc"), limit(50)));
-      const productsData = productsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      setProducts(productsData);
+      const { data: productsData, error: productsError } = await supabase
+        .from("products")
+        .select(`
+            *,
+            profiles (display_name, shop_name)
+        `)
+        .order("created_at", { ascending: false })
+        .limit(50);
+
+      if (productsError) throw productsError;
+
+      const formattedProducts = productsData.map(p => ({
+        id: p.id,
+        name: p.name,
+        price: p.price,
+        images: p.images,
+        dealerName: p.profiles?.display_name || p.profiles?.shop_name || "Unknown",
+        userId: p.owner_id
+      }));
+
+      setProducts(formattedProducts);
 
       // 3. Fetch Pending Requests
-      const requestsSnap = await getDocs(collection(db, "pending-request"));
-      let requestsData = requestsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      
-      requestsData = requestsData.sort((a: any, b: any) => {
-          const dateA = a.createdAt || 0;
-          const dateB = b.createdAt || 0;
-          return dateB - dateA;
-      });
-
-      setPendingRequests(requestsData);
+      // In Supabase, this is just profiles where onboarding_status is 'submitted'
+      const pendingData = formattedDealers.filter(d => d.onboardingStatus === 'submitted');
+      setPendingRequests(pendingData);
 
       // 4. Calculate Stats
-      const totalValue = productsData.reduce((sum, item: any) => sum + (Number(item.price) || 0), 0);
+      const totalValue = formattedProducts.reduce((sum, item: any) => sum + (Number(item.price) || 0), 0);
 
       setStats({
-        dealers: usersData.length,
-        phones: productsData.length,
+        dealers: formattedDealers.length,
+        phones: formattedProducts.length,
         value: totalValue,
-        pending: requestsData.length,
+        pending: pendingData.length,
       });
 
     } catch (error: any) {
-      console.error("❌ FETCH ERROR:", error);
+      console.error("❌ FETCH ERROR:", error.message);
       Alert.alert("Error", "Could not fetch admin data.");
     } finally {
       setLoading(false);
@@ -127,24 +145,20 @@ export default function AdminDashboard() {
     setSendingBroadcast(true);
 
     try {
-        // 1. Save Broadcast to History
-        await addDoc(collection(db, "broadcasts"), {
+        // 1. Save Broadcast to History (Supabase Table)
+        await supabase.from("broadcasts").insert({
             title: broadcastTitle,
             body: broadcastBody,
-            createdAt: Date.now(),
-            sentBy: "Admin"
+            sent_by: "Admin"
         });
 
-        // 2. Collect FCM Tokens
-        // Assuming your 'users' collection has a field 'fcmToken' (or 'pushToken')
-        const tokens: string[] = [];
-        dealers.forEach((user) => {
-            // Check for both common naming conventions
-            const token = user.fcmToken || user.pushToken;
-            if (token && typeof token === 'string') {
-                tokens.push(token);
-            }
-        });
+        // 2. Collect FCM Tokens from Profiles
+        const { data: tokensData } = await supabase
+            .from("profiles")
+            .select("fcm_token")
+            .not("fcm_token", "is", null); // Only users with tokens
+
+        const tokens: string[] = tokensData?.map(t => t.fcm_token).filter(Boolean) || [];
 
         // 3. Send via Firebase FCM API
         if (tokens.length > 0) {
@@ -161,7 +175,7 @@ export default function AdminDashboard() {
 
     } catch (error: any) {
         console.error("Broadcast Error:", error);
-        Alert.alert("Error", "Failed to send broadcast: " + error.message);
+        Alert.alert("Error", "Failed to send broadcast.");
     } finally {
         setSendingBroadcast(false);
     }
@@ -183,7 +197,7 @@ export default function AdminDashboard() {
           priority: "high"
         },
         data: {
-          type: "broadcast_alert", // Custom data payload
+          type: "broadcast_alert", 
           screen: "notifications"
         }
       }),
@@ -200,12 +214,7 @@ export default function AdminDashboard() {
   // --- OTHER ACTIONS ---
 
   const handleRequestAction = async (request: any, action: "approve" | "reject") => {
-    const targetUserId = request.uid || request.userId || request.user_id || request.id;
-
-    if (!targetUserId) {
-        Alert.alert("Error", "Cannot find User ID in this request.");
-        return;
-    }
+    const targetUserId = request.id; // In mapped data, id is the user ID
 
     Alert.alert(
       `${action === "approve" ? "Approve" : "Reject"} Dealer?`,
@@ -217,30 +226,25 @@ export default function AdminDashboard() {
           style: action === "reject" ? "destructive" : "default",
           onPress: async () => {
             try {
-              const userRef = doc(db, "users", targetUserId);
+              // In Supabase, we just update the profile status
+              const updates = action === "approve" 
+                ? { onboarding_status: "approved", role: "dealer" }
+                : { onboarding_status: "rejected", role: "user" };
 
-              if (action === "approve") {
-                  await setDoc(userRef, { 
-                    onboardingStatus: "approved",
-                    role: "dealer",
-                    displayName: request.displayName || "",
-                    email: request.email || "",
-                    shopName: request.shopName || "",
-                    city: request.city || "",
-                    createdAt: request.createdAt || Date.now()
-                  }, { merge: true });
-              } else {
-                  await setDoc(userRef, { status: "rejected", role: "user" }, { merge: true });
-              }
+              const { error } = await supabase
+                .from("profiles")
+                .update(updates)
+                .eq("id", targetUserId);
 
-              await deleteDoc(doc(db, "pending-request", request.id));
+              if (error) throw error;
 
-              setPendingRequests(prev => prev.filter(r => r.id !== request.id));
+              // Optimistic UI Update
+              setPendingRequests(prev => prev.filter(r => r.id !== targetUserId));
               setStats(prev => ({ ...prev, pending: prev.pending - 1 }));
               
               if (action === "approve") {
-                 const newUser = { ...request, id: targetUserId, onboardingStatus: "approved", role: "dealer" };
-                 setDealers(prev => [newUser, ...prev]);
+                 // Update the main dealers list if they are approved
+                 setDealers(prev => prev.map(d => d.id === targetUserId ? { ...d, onboardingStatus: "approved", role: "dealer" } : d));
               }
 
               Alert.alert("Success", `Dealer ${action}d successfully.`);
@@ -254,6 +258,8 @@ export default function AdminDashboard() {
   };
 
   const toggleUserStatus = async (dealer: any) => {
+    // Requires a 'status' column in 'profiles' table. 
+    // Run: alter table public.profiles add column status text default 'active';
     const newStatus = dealer.status === "suspended" ? "active" : "suspended";
     
     Alert.alert(
@@ -265,7 +271,7 @@ export default function AdminDashboard() {
           text: "Confirm", 
           style: newStatus === "suspended" ? "destructive" : "default",
           onPress: async () => {
-            await updateDoc(doc(db, "users", dealer.id), { status: newStatus });
+            await supabase.from("profiles").update({ status: newStatus }).eq("id", dealer.id);
             setDealers(dealers.map(d => d.id === dealer.id ? { ...d, status: newStatus } : d));
           }
         }
@@ -281,7 +287,9 @@ export default function AdminDashboard() {
         style: "destructive",
         onPress: async () => {
           try {
-            await deleteDoc(doc(db, "products", productId));
+            const { error } = await supabase.from("products").delete().eq("id", productId);
+            if (error) throw error;
+
             setProducts(products.filter(p => p.id !== productId));
             Alert.alert("Deleted", "Phone removed.");
           } catch (e) {
@@ -292,8 +300,8 @@ export default function AdminDashboard() {
     ]);
   };
 
-  const handleLogout = () => {
-    auth.signOut();
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     router.replace("/login");
   };
 

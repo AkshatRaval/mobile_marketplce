@@ -56,7 +56,7 @@ export default function DealerHome() {
     loading: requestsLoading,
     acceptRequest,
     rejectRequest,
-  } = useConnectionRequests(user?.uid);
+  } = useConnectionRequests(user?.id);
 
   // Local UI state
   const [isNotifVisible, setIsNotifVisible] = useState(false);

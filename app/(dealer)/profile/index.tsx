@@ -4,43 +4,62 @@ import { useProfileActions } from "@/src/hooks/useProfileActions";
 import { useProfileData } from "@/src/hooks/useProfileData";
 import { getMainImage } from "@/src/utils/helpers";
 import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
   Dimensions,
+  Easing,
   FlatList,
   Image,
+  LayoutAnimation,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StatusBar,
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  UIManager,
+  View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+// Enable LayoutAnimation for Android
+if (
+  Platform.OS === "android" &&
+  UIManager.setLayoutAnimationEnabledExperimental
+) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 // CONSTANTS
 const { width: SCREEN_WIDTH, height: WINDOW_HEIGHT } = Dimensions.get("window");
 const GRID_ITEM_WIDTH = SCREEN_WIDTH / 3;
+const DRAWER_WIDTH = SCREEN_WIDTH * 0.75; // Drawer takes 75% of width
 
 export default function Profile() {
   const { user } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  // ✅ ALL DATA FETCHING IN HOOK
-  const { profileData, listings, connectionsUsers } = useProfileData(user?.uid);
+  // DATA FETCHING
+  const { profileData, listings, connectionsUsers } = useProfileData(user?.id);
 
-  // ✅ ALL ACTIONS IN HOOK
-  const { loading, deleteProduct, updateProduct, logout } = useProfileActions(
-    user?.uid,
-    profileData
-  );
+  // ACTIONS (Backend Connected)
+  const {
+    loading,
+    deleteProduct,
+    updateProduct,
+    logout,
+    uploadProfileImage,
+    updatePrivacySettings,
+  } = useProfileActions(user?.id, profileData);
 
-  // UI STATE ONLY
+  // UI STATE
   const [feedVisible, setFeedVisible] = useState(false);
   const [initialFeedIndex, setInitialFeedIndex] = useState(0);
   const [reelHeight, setReelHeight] = useState(WINDOW_HEIGHT);
@@ -52,6 +71,102 @@ export default function Profile() {
   const [editName, setEditName] = useState("");
   const [editPrice, setEditPrice] = useState("");
   const [editDescription, setEditDescription] = useState("");
+
+  // ✨ DRAWER STATE & ANIMATIONS
+  const [isDrawerVisible, setIsDrawerVisible] = useState(false);
+  
+  // Animation Values
+  const slideAnim = useRef(new Animated.Value(DRAWER_WIDTH)).current; // For Drawer Slide
+  const fadeAnim = useRef(new Animated.Value(0)).current; // For Backdrop Fade
+
+  // Privacy State
+  const [isPrivacyOpen, setIsPrivacyOpen] = useState(false);
+  const [privacySetting, setPrivacySetting] = useState("Everyone");
+
+  // ✅ SYNC Privacy Setting with DB data
+  useEffect(() => {
+    if (profileData?.privacySettings) {
+      setPrivacySetting(profileData.privacySettings);
+    }
+  }, [profileData]);
+
+  // ========================================
+  // ANIMATION LOGIC (Smoother)
+  // ========================================
+
+  const openDrawer = () => {
+    setIsDrawerVisible(true);
+    // Run Slide and Fade in parallel
+    Animated.parallel([
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 400,
+        easing: Easing.out(Easing.cubic), // Smooth "out" easing
+        useNativeDriver: true,
+      }),
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
+  const closeDrawer = () => {
+    Animated.parallel([
+      Animated.timing(slideAnim, {
+        toValue: DRAWER_WIDTH,
+        duration: 350,
+        easing: Easing.in(Easing.cubic), // Smooth "in" easing
+        useNativeDriver: true,
+      }),
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 350,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setIsDrawerVisible(false);
+      setIsPrivacyOpen(false); // Reset accordion
+    });
+  };
+
+  const togglePrivacy = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setIsPrivacyOpen(!isPrivacyOpen);
+  };
+
+  // ========================================
+  // BACKEND ACTIONS
+  // ========================================
+
+  const handlePickProfileImage = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.5, // Lower quality for faster upload
+      });
+
+      if (!result.canceled) {
+        const uri = result.assets[0].uri;
+        // ✅ Call backend action
+        await uploadProfileImage(uri);
+      }
+    } catch (error) {
+      console.log("Error picking image:", error);
+    }
+  };
+
+  const handlePrivacyChange = async (option: string) => {
+    setPrivacySetting(option); // Optimistic UI update
+    await updatePrivacySettings(option); // Backend update
+  };
+
+  // ========================================
+  // FEED ACTIONS
+  // ========================================
 
   const openFeedAtIndex = (index: number) => {
     setInitialFeedIndex(index);
@@ -70,7 +185,7 @@ export default function Profile() {
     if (!selectedItem) return;
     const productImages = selectedItem.images || [];
     const success = await deleteProduct(selectedItem.id, productImages);
-    
+
     if (success) {
       setIsOptionsVisible(false);
       if (listings.length <= 1) {
@@ -93,10 +208,6 @@ export default function Profile() {
     }
   };
 
-  // ========================================
-  // UI ONLY FROM HERE
-  // ========================================
-
   const ListHeader = () => (
     <View className="bg-white pb-4 border-b border-gray-100 mb-0.5">
       <View className="flex-row justify-between items-center px-6 pt-2 mb-6">
@@ -105,22 +216,41 @@ export default function Profile() {
         </Text>
 
         <TouchableOpacity
-          onPress={logout}
-          className="bg-gray-50 p-2 rounded-full"
+          onPress={openDrawer}
+          className="bg-gray-50 p-2 rounded-full active:bg-gray-200"
         >
-          <Ionicons name="ellipsis-vertical" size={20} color="black" />
+          <Ionicons name="menu" size={24} color="black" />
         </TouchableOpacity>
       </View>
 
       <View className="px-6 flex-row items-center mb-6">
-        <Image
-          source={{
-            uri:
-              profileData?.photoURL ||
-              `https://ui-avatars.com/api/?name=${profileData?.displayName}`,
-          }}
-          className="w-20 h-20 rounded-full border-4 border-gray-50 mr-5"
-        />
+        <TouchableOpacity 
+          onPress={handlePickProfileImage} 
+          disabled={loading}
+          className="relative"
+        >
+          {loading ? (
+             <View className="w-20 h-20 rounded-full border-4 border-gray-50 mr-5 justify-center items-center bg-gray-100">
+                <ActivityIndicator size="small" color="#000" />
+             </View>
+          ) : (
+            <Image
+              source={{
+                uri:
+                  profileData?.photoURL ||
+                  `https://ui-avatars.com/api/?name=${profileData?.displayName}`,
+              }}
+              className="w-20 h-20 rounded-full border-4 border-gray-50 mr-5"
+            />
+          )}
+          
+          {!loading && (
+            <View className="absolute bottom-0 right-4 bg-black p-1.5 rounded-full border-2 border-white">
+              <Ionicons name="camera" size={12} color="white" />
+            </View>
+          )}
+        </TouchableOpacity>
+
         <View>
           <Text className="text-2xl font-black text-gray-900">
             {profileData?.displayName || "Dealer"}
@@ -169,12 +299,12 @@ export default function Profile() {
             data={connectionsUsers}
             horizontal
             showsHorizontalScrollIndicator={false}
-            // ✅ CRITICAL FIX: Fallback key extractor ensures no crash if uid is missing
             keyExtractor={(item, index) => item.uid || String(index)}
             renderItem={({ item }) => (
               <TouchableOpacity
-                // ✅ Safety Check: Only navigate if UID exists
-                onPress={() => item.uid && router.push(`/(dealer)/profile/${item.uid}`)}
+                onPress={() =>
+                  item.uid && router.push(`/(dealer)/profile/${item.uid}`)
+                }
                 className="mr-4 items-center"
               >
                 <Image
@@ -200,10 +330,12 @@ export default function Profile() {
   );
 
   return (
-    <View style={{ flex: 1, backgroundColor: "white", paddingTop: insets.top }}>
+    <View
+      style={{ flex: 1, backgroundColor: "white", paddingTop: insets.top }}
+    >
       <StatusBar barStyle="dark-content" />
 
-      {/* GRID VIEW */}
+      {/* LIST OF PRODUCTS */}
       {listings.length === 0 ? (
         <>
           <ListHeader />
@@ -252,7 +384,138 @@ export default function Profile() {
         />
       )}
 
-      {/* FEED MODAL */}
+      {/* ✨ ANIMATED DRAWER MODAL */}
+      <Modal
+        visible={isDrawerVisible}
+        transparent
+        animationType="none"
+        onRequestClose={closeDrawer}
+      >
+        <View className="flex-1">
+          {/* 1. Backdrop (Fades In/Out) */}
+          <Animated.View
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: "rgba(0,0,0,0.4)",
+              opacity: fadeAnim, // ✨ FADE ANIMATION
+            }}
+          >
+            <Pressable className="flex-1" onPress={closeDrawer} />
+          </Animated.View>
+
+          {/* 2. Drawer Content (Slides In/Out) */}
+          <Animated.View
+            style={{
+              position: "absolute",
+              right: 0,
+              top: 0,
+              bottom: 0,
+              width: DRAWER_WIDTH,
+              backgroundColor: "white",
+              paddingTop: insets.top + 20,
+              paddingHorizontal: 24,
+              shadowColor: "#000",
+              shadowOffset: { width: -5, height: 0 },
+              shadowOpacity: 0.1,
+              shadowRadius: 10,
+              elevation: 20,
+              transform: [{ translateX: slideAnim }], // ✨ SLIDE ANIMATION
+            }}
+          >
+            <Text className="text-2xl font-black text-gray-900 mb-8 mt-4">
+              Settings
+            </Text>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {/* Sales Logs */}
+              <TouchableOpacity
+                onPress={() => {
+                  closeDrawer();
+                  router.push("/services/sales-logs"); 
+                }}
+                className="flex-row items-center py-4 border-b border-gray-100 active:opacity-70"
+              >
+                <View className="w-8">
+                  <Ionicons name="bar-chart-outline" size={22} color="black" />
+                </View>
+                <Text className="text-base font-bold text-gray-800">
+                  Sales Logs
+                </Text>
+              </TouchableOpacity>
+
+              {/* Privacy Accordion */}
+              <TouchableOpacity
+                onPress={togglePrivacy}
+                className="flex-row items-center justify-between py-4 border-b border-gray-100 active:opacity-70"
+              >
+                <View className="flex-row items-center">
+                  <View className="w-8">
+                    <Ionicons name="lock-closed-outline" size={22} color="black" />
+                  </View>
+                  <Text className="text-base font-bold text-gray-800">
+                    Privacy
+                  </Text>
+                </View>
+                <Ionicons
+                  name={isPrivacyOpen ? "chevron-up" : "chevron-down"}
+                  size={16}
+                  color="gray"
+                />
+              </TouchableOpacity>
+
+              {/* Privacy Options */}
+              {isPrivacyOpen && (
+                <View className="bg-gray-50 rounded-lg p-2 mb-2">
+                  {[
+                    "Everyone",
+                    "No one",
+                    "Connections only",
+                    "Selected connections",
+                  ].map((option) => (
+                    <TouchableOpacity
+                      key={option}
+                      onPress={() => handlePrivacyChange(option)}
+                      className="flex-row items-center justify-between p-3 active:bg-gray-200 rounded-md"
+                    >
+                      <Text
+                        className={`text-sm font-medium ${
+                          privacySetting === option
+                            ? "text-indigo-600"
+                            : "text-gray-500"
+                        }`}
+                      >
+                        {option}
+                      </Text>
+                      {privacySetting === option && (
+                        <Ionicons name="checkmark" size={16} color="#4F46E5" />
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+
+              {/* Logout */}
+              <TouchableOpacity
+                onPress={logout}
+                className="flex-row items-center py-4 mt-4 active:opacity-70"
+              >
+                <View className="w-8">
+                  <Ionicons name="log-out-outline" size={22} color="#EF4444" />
+                </View>
+                <Text className="text-base font-bold text-red-500">
+                  Log Out
+                </Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </Animated.View>
+        </View>
+      </Modal>
+
+      {/* FEED MODAL (UNCHANGED) */}
       <Modal
         visible={feedVisible}
         animationType="slide"
@@ -288,7 +551,7 @@ export default function Profile() {
         </View>
       </Modal>
 
-      {/* OPTIONS DROPDOWN */}
+      {/* OPTIONS & EDIT MODALS (UNCHANGED) */}
       {isOptionsVisible && (
         <Modal transparent animationType="fade" visible={isOptionsVisible}>
           <Pressable
@@ -309,9 +572,7 @@ export default function Profile() {
                 <Ionicons name="create-outline" size={20} color="#333" />
                 <Text className="ml-3 font-bold text-gray-800">Edit Post</Text>
               </TouchableOpacity>
-
               <View className="h-[1px] bg-gray-100 mx-4" />
-
               <TouchableOpacity
                 onPress={handleDeleteListing}
                 disabled={loading}
@@ -325,14 +586,12 @@ export default function Profile() {
         </Modal>
       )}
 
-      {/* EDIT MODAL */}
       <Modal visible={isEditModalVisible} transparent animationType="fade">
         <View className="flex-1 bg-black/80 justify-center items-center px-6">
           <View className="bg-white w-full rounded-3xl p-6 max-h-[80%]">
             <Text className="text-xl font-black text-center mb-6">
               Edit Listing
             </Text>
-
             <ScrollView showsVerticalScrollIndicator={false}>
               <Text className="text-gray-500 font-bold mb-1 ml-1 text-xs uppercase">
                 Product Name
@@ -343,7 +602,6 @@ export default function Profile() {
                 className="bg-gray-100 p-4 rounded-xl font-bold mb-4"
                 placeholder="Product Name"
               />
-
               <Text className="text-gray-500 font-bold mb-1 ml-1 text-xs uppercase">
                 Price (₹)
               </Text>
@@ -354,7 +612,6 @@ export default function Profile() {
                 className="bg-gray-100 p-4 rounded-xl font-bold mb-4"
                 placeholder="Price"
               />
-
               <Text className="text-gray-500 font-bold mb-1 ml-1 text-xs uppercase">
                 Description
               </Text>
@@ -368,7 +625,6 @@ export default function Profile() {
                 placeholder="Description"
               />
             </ScrollView>
-
             <View className="flex-row gap-4 mt-2">
               <TouchableOpacity
                 onPress={() => setIsEditModalVisible(false)}

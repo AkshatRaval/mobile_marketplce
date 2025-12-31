@@ -1,120 +1,130 @@
 // src/services/api/requestApi.ts
-// Handles ALL Firebase market request operations
-// EXTRACTED FROM: requests.tsx
+// Handles ALL Supabase market request operations
 
-import { db } from "@/FirebaseConfig";
+import { supabase } from "@/src/supabaseConfig";
 import type { MarketRequest } from "@/src/types";
-import {
-    addDoc,
-    collection,
-    deleteDoc,
-    doc,
-    onSnapshot,
-    orderBy,
-    query,
-    Unsubscribe,
-} from "firebase/firestore";
 
 export const requestApi = {
   /**
    * Create a new market request
-   * EXTRACTED FROM: requests.tsx handlePostRequest (lines 88-108)
    */
   createRequest: async (requestData: {
     title: string;
     budget: string;
     description: string;
-    dealerId: string;
-    dealerName: string;
+    dealer_id: string;   // Changed to snake_case to match typical DB calls, but mapping happens inside
+    dealer_name: string; 
   }): Promise<string> => {
     try {
       console.log("📝 Creating market request...");
 
-      const docRef = await addDoc(collection(db, "market_requests"), {
-        title: requestData.title,
-        budget: requestData.budget,
-        description: requestData.description,
-        dealerId: requestData.dealerId,
-        dealerName: requestData.dealerName,
-        createdAt: Date.now(),
-        status: "open",
-      });
+      const { data, error } = await supabase
+        .from("requests")
+        .insert({
+          title: requestData.title,
+          budget: Number(requestData.budget), // Convert string to number for numeric column
+          description: requestData.description,
+          dealer_id: requestData.dealer_id,
+          dealer_name: requestData.dealer_name,
+          status: "open",
+          // created_at is handled automatically by default value
+        })
+        .select("id")
+        .single();
 
-      console.log("✅ Market request created:", docRef.id);
-      return docRef.id;
+      if (error) throw error;
 
-    } catch (error) {
-      console.error("❌ Error creating request:", error);
+      console.log("✅ Market request created:", data.id);
+      return data.id;
+
+    } catch (error: any) {
+      console.error("❌ Error creating request:", error.message);
       throw new Error("Failed to create market request");
     }
   },
 
   /**
    * Subscribe to real-time market requests
-   * EXTRACTED FROM: requests.tsx useEffect (lines 41-56)
    */
   subscribeToRequests: (
     onUpdate: (requests: MarketRequest[]) => void,
     onError?: (error: Error) => void
-  ): Unsubscribe => {
-    try {
-      console.log("👂 Subscribing to market requests...");
+  ) => {
+    console.log("👂 Subscribing to market requests...");
 
-      const q = query(
-        collection(db, "market_requests"),
-        orderBy("createdAt", "desc")
-      );
+    // 1. Helper to fetch data
+    const fetchRequests = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("requests")
+          .select("*")
+          .order("created_at", { ascending: false });
 
-      const unsubscribe = onSnapshot(
-        q,
-        (snapshot) => {
-          const requests: MarketRequest[] = snapshot.docs.map((doc) => {
-            const data = doc.data();
-            return {
-              id: doc.id,
-              title: data.title || "",
-              budget: data.budget || "0",
-              description: data.description || "",
-              dealerName: data.dealerName || "Unknown",
-              dealerId: data.dealerId || "",
-              createdAt: data.createdAt || Date.now(),
-              status: data.status || "open",
-            };
-          });
+        if (error) throw error;
 
-          console.log(`✅ Fetched ${requests.length} requests`);
-          onUpdate(requests);
+        // Map Supabase rows to MarketRequest type
+        const requests: MarketRequest[] = data.map((row) => ({
+          id: row.id,
+          title: row.title,
+          budget: String(row.budget), // Convert numeric back to string for UI
+          description: row.description || "",
+          dealerName: row.dealer_name || "Unknown",
+          dealerId: row.dealer_id,
+          // Convert ISO timestamp string to number (ms) to match previous Firebase behavior
+          createdAt: row.created_at ? new Date(row.created_at).getTime() : Date.now(),
+          status: row.status || "open",
+        }));
+
+        onUpdate(requests);
+      } catch (err: any) {
+        console.error("❌ Error fetching requests:", err.message);
+        if (onError) onError(err);
+      }
+    };
+
+    // 2. Initial Fetch
+    fetchRequests();
+
+    // 3. Real-time Listener
+    const channel = supabase
+      .channel("market_requests_feed")
+      .on(
+        "postgres_changes",
+        {
+          event: "*", // Listen for INSERT, UPDATE, DELETE
+          schema: "public",
+          table: "requests",
         },
-        (error) => {
-          console.error("❌ Error in request subscription:", error);
-          if (onError) {
-            onError(error as Error);
-          }
+        () => {
+          console.log("🔔 Market requests updated, refreshing...");
+          fetchRequests();
         }
-      );
+      )
+      .subscribe();
 
-      return unsubscribe;
-
-    } catch (error) {
-      console.error("❌ Error subscribing to requests:", error);
-      throw new Error("Failed to subscribe to requests");
-    }
+    // Return unsubscribe function
+    return () => {
+      supabase.removeChannel(channel);
+    };
   },
 
   /**
    * Delete a market request
-   * EXTRACTED FROM: requests.tsx handleMenuAction (lines 64-72)
    */
   deleteRequest: async (requestId: string): Promise<void> => {
     try {
       console.log("🗑️ Deleting request:", requestId);
 
-      await deleteDoc(doc(db, "market_requests", requestId));
+      const { error } = await supabase
+        .from("requests")
+        .delete()
+        .eq("id", requestId);
+
+      if (error) throw error;
 
       console.log("✅ Request deleted");
-
-    } catch (error) {
-      console.error("❌ Error deleting request:", error);
+    } catch (error: any) {
+      console.error("❌ Error deleting request:", error.message);
       throw new Error("Failed to delete request");
     }
   },

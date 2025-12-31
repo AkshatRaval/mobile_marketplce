@@ -3,14 +3,12 @@ import { Ionicons } from "@expo/vector-icons";
 import { Redirect, Tabs } from "expo-router";
 import React from "react";
 import { ActivityIndicator, View } from "react-native";
-// 1. Import the hook
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const ICON_SIZE = 26;
 
 export default function DealerLayout() {
   const { user, userDoc, loading } = useAuth();
-  // 2. Get the safe area insets
   const insets = useSafeAreaInsets();
 
   if (loading) {
@@ -21,12 +19,20 @@ export default function DealerLayout() {
     );
   }
 
+  // Basic Auth Checks
   if (!user) return <Redirect href="/login" />;
+  
+  // Role Check
+  // Note: If userDoc is missing, this redirects to home. 
+  // Ensure your AuthContext fetches the profile correctly.
   if (userDoc?.role !== "dealer") return <Redirect href="/" />;
-  if (userDoc?.onboardingStatus === "suspended")
-    return <Redirect href="/(auth)/suspended" />;
-  if (userDoc?.onboardingStatus !== "approved")
-    return <Redirect href="/(auth)/onboarding" />;
+
+  // ✅ FIXED PATHS (Assuming files are at app/suspended.tsx)
+  if (userDoc?.onboarding_status === "suspended")
+    return <Redirect href="/suspended" />;
+    
+  if (userDoc?.onboarding_status !== "approved")
+    return <Redirect href="/onboarding" />;
 
   return (
     <Tabs
@@ -35,10 +41,9 @@ export default function DealerLayout() {
         tabBarShowLabel: false,
         tabBarActiveTintColor: "#000",
         tabBarInactiveTintColor: "#8E8E93",
-
         tabBarStyle: {
           height: 60 + insets.bottom,
-          paddingBottom: insets.bottom, 
+          paddingBottom: insets.bottom,
           paddingTop: 6,
           backgroundColor: "#fff",
           borderTopWidth: 0.5,
@@ -107,6 +112,8 @@ export default function DealerLayout() {
         }}
       />
 
+      {/* Hidden Screens */}
+      <Tabs.Screen name="services/sales-logs" options={{ href: null }} />
       <Tabs.Screen name="profile/[id]" options={{ href: null }} />
       <Tabs.Screen name="services/connections" options={{ href: null }} />
     </Tabs>

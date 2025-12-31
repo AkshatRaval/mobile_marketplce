@@ -9,9 +9,6 @@ from difflib import get_close_matches
 
 app = FastAPI(title="Smart Mobile Extractor v4")
 
-# ==========================================
-# 1. DATABASE
-# ==========================================
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_FILE = os.path.join(BASE_DIR, "training_data.json")
 

@@ -1,135 +1,168 @@
-import { db } from "@/FirebaseConfig";
-import {
-  collection,
-  deleteDoc,
-  doc,
-  documentId,
-  getDoc,
-  getDocs,
-  onSnapshot,
-  query,
-  serverTimestamp,
-  setDoc,
-  Unsubscribe,
-  updateDoc,
-  where
-} from "firebase/firestore";
-
-// Helper to generate a consistent ID for two users
-export const getFriendshipId = (uid1: string, uid2: string) => {
-  return [uid1, uid2].sort().join('_');
-};
-
-const COLLECTION = 'friendships';
+// src/services/api/publicProfileApi.ts
+import { supabase } from "@/src/supabaseConfig";
 
 export const publicProfileApi = {
   
-  // 1. Subscribe to Status (Fixed: Listens to the specific Friendship Document)
+  // 1. Subscribe to Status (Real-time listener on 'connections' table)
   subscribeToConnectionStatus: (
     currentUserId: string,
     dealerId: string,
     onStatusChange: (status: "none" | "pending" | "connected" | "received") => void,
     onError?: (error: Error) => void
-  ): Unsubscribe => {
+  ) => {
     console.log(`👂 Subscribing to connection status with ${dealerId}`);
 
-    const docId = getFriendshipId(currentUserId, dealerId);
+    // Helper to fetch current status
+    const checkStatus = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("connections")
+          .select("*")
+          .or(`and(sender_id.eq.${currentUserId},receiver_id.eq.${dealerId}),and(sender_id.eq.${dealerId},receiver_id.eq.${currentUserId})`)
+          .maybeSingle(); // Returns null if no row found
 
-    const unsubscribe = onSnapshot(
-      doc(db, COLLECTION, docId),
-      (docSnapshot) => {
-        if (!docSnapshot.exists()) {
-          console.log("➡️ No relationship found");
+        if (error) throw error;
+
+        if (!data) {
           onStatusChange("none");
           return;
         }
 
-        const data = docSnapshot.data();
-
         if (data.status === 'accepted') {
           onStatusChange("connected");
         } else if (data.status === 'pending') {
-          // If I am the sender, it's pending. If I am the receiver, I should see "Accept" (handled by UI usually, but good to know)
-          if (data.senderId === currentUserId) {
-             onStatusChange("pending");
+          if (data.sender_id === currentUserId) {
+            onStatusChange("pending"); // I sent it
           } else {
-             onStatusChange("received"); // Added this state so you know if YOU need to accept it
+            onStatusChange("received"); // They sent it
           }
         } else {
           onStatusChange("none");
         }
-      },
-      (error) => {
-        console.error("❌ Error subscribing to connection status:", error);
-        if (onError) onError(error as Error);
+      } catch (err: any) {
+        console.error("❌ Error checking connection status:", err);
+        if (onError) onError(err);
       }
-    );
+    };
 
-    return unsubscribe;
+    // Initial check
+    checkStatus();
+
+    // Real-time Listener
+    const channel = supabase
+      .channel(`connection_status_${currentUserId}_${dealerId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "connections",
+          // Filter is tricky for OR conditions in realtime, so we listen to all changes involves these users roughly
+          // Ideally, we'd filter strictly, but Supabase realtime filters are limited.
+          // We'll rely on client-side filtering or just re-checking status on any connection change for these users.
+          filter: `sender_id=in.(${currentUserId},${dealerId})`, 
+        },
+        () => checkStatus()
+      )
+      .subscribe();
+
+    // We need a second listener or a smarter filter because the first one only catches if sender is involved.
+    // Simpler approach: Just re-run checkStatus whenever ANY connection change happens involving this user.
+    // For specific optimization, backend triggers are better, but this works for client-side.
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   },
 
-  // 2. Fetch Profile (Unchanged - this is fine)
+  // 2. Fetch Profile (From 'profiles' table)
   fetchDealerProfile: async (dealerId: string): Promise<any | null> => {
     try {
-      const userSnap = await getDoc(doc(db, "users", dealerId));
-      return userSnap.exists() ? userSnap.data() : null;
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", dealerId)
+        .single();
+
+      if (error) return null;
+
+      // Map snake_case to camelCase
+      return {
+        uid: data.id,
+        displayName: data.display_name,
+        shopName: data.shop_name,
+        photoURL: data.photo_url,
+        role: data.role,
+        onboardingStatus: data.onboarding_status,
+        city: data.city,
+        // ... other fields
+      };
     } catch (error) {
       console.error("❌ Error fetching dealer profile:", error);
       throw new Error("Failed to fetch dealer profile");
     }
   },
 
-  // 3. Fetch Inventory (Unchanged - this is fine)
+  // 3. Fetch Inventory (From 'products' table)
   fetchDealerInventory: async (dealerId: string): Promise<any[]> => {
     try {
-      const q = query(collection(db, "products"), where("userId", "==", dealerId));
-      const productsSnap = await getDocs(q);
-      return productsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      const { data, error } = await supabase
+        .from("products")
+        .select("*")
+        .eq("owner_id", dealerId);
+
+      if (error) throw error;
+
+      return data.map((p) => ({
+        id: p.id,
+        name: p.name,
+        price: p.price,
+        description: p.description,
+        images: p.images,
+        userId: p.owner_id
+      }));
     } catch (error) {
       console.error("❌ Error fetching inventory:", error);
       throw new Error("Failed to fetch inventory");
     }
   },
 
-  // 4. Fetch Connections (Fixed: Queries 'friendships' collection first)
+  // 4. Fetch Connections
   fetchDealerConnections: async (dealerId: string): Promise<any[]> => {
     try {
       console.log(`👥 Finding friends for: ${dealerId}`);
 
-      // Step A: Find all accepted friendships
-      const q = query(
-        collection(db, COLLECTION),
-        where("users", "array-contains", dealerId),
-        where("status", "==", "accepted"),
+      // Step A: Find accepted connections
+      const { data: connections, error } = await supabase
+        .from("connections")
+        .select("sender_id, receiver_id")
+        .eq("status", "accepted")
+        .or(`sender_id.eq.${dealerId},receiver_id.eq.${dealerId}`);
+
+      if (error) throw error;
+
+      if (!connections || connections.length === 0) return [];
+
+      // Step B: Extract Friend IDs
+      const friendIds = connections.map(c => 
+        c.sender_id === dealerId ? c.receiver_id : c.sender_id
       );
-
-      const friendshipSnap = await getDocs(q);
-      
-      if (friendshipSnap.empty) return [];
-
-      // Step B: Extract the OTHER person's ID
-      // We also filter(Boolean) to remove any potential 'undefined' values
-      const friendIds = friendshipSnap.docs
-        .map(doc => {
-          const data = doc.data();
-          return data.users.find((uid: string) => uid !== dealerId);
-        })
-        .filter(Boolean); // Remove nulls/undefined
 
       if (friendIds.length === 0) return [];
 
-      // Step C: Fetch the actual user profiles
-      // ✅ FIXED: Uses documentId() and slices to 10
-      const usersQ = query(
-        collection(db, "users"),
-        where(documentId(), "in", friendIds.slice(0, 10))
-      );
+      // Step C: Fetch Profiles (Limit 10)
+      const { data: users, error: usersError } = await supabase
+        .from("profiles")
+        .select("*")
+        .in("id", friendIds.slice(0, 10));
 
-      const usersSnap = await getDocs(usersQ);
-      
-      return usersSnap.docs.map((d) => ({ 
-        uid: d.id, // Explicitly return the ID
-        ...d.data() 
+      if (usersError) throw usersError;
+
+      return users.map((u) => ({
+        uid: u.id,
+        displayName: u.display_name,
+        photoURL: u.photo_url,
+        shopName: u.shop_name,
       }));
 
     } catch (error) {
@@ -138,23 +171,24 @@ export const publicProfileApi = {
     }
   },
 
-  // 5. Send Request (Fixed: Creates a document in 'friendships')
+  // 5. Send Request
   sendConnectionRequest: async (
     currentUserId: string,
     dealerId: string
   ): Promise<void> => {
     try {
       console.log(`📤 Sending connection request to ${dealerId}`);
-      const docId = getFriendshipId(currentUserId, dealerId);
       
-      // Use setDoc with merge: true to be safe
-      await setDoc(doc(db, COLLECTION, docId), {
-        users: [currentUserId, dealerId], // Important for querying!
-        senderId: currentUserId,
-        receiverId: dealerId,
-        status: 'pending',
-        updatedAt: serverTimestamp(),
-      }, { merge: true });
+      const { error } = await supabase
+        .from("connections")
+        .insert({
+          sender_id: currentUserId,
+          receiver_id: dealerId,
+          status: "pending",
+          users: [currentUserId, dealerId] // kept for array searching compatibility if needed
+        });
+
+      if (error) throw error;
 
       console.log("✅ Connection request sent");
     } catch (error) {
@@ -163,33 +197,39 @@ export const publicProfileApi = {
     }
   },
 
-  // 6. Accept Request (New Function - You need this!)
+  // 6. Accept Request
   acceptConnectionRequest: async (
-    currentUserId: string,
-    senderId: string
+    currentUserId: string, // Receiver (Me)
+    senderId: string       // Sender (Them)
   ): Promise<void> => {
-     try {
-       const docId = getFriendshipId(currentUserId, senderId);
-       await updateDoc(doc(db, COLLECTION, docId), {
-         status: 'accepted',
-         updatedAt: serverTimestamp()
-       });
-     } catch (error) {
-       console.error("❌ Error accepting request:", error);
-       throw error;
-     }
+    try {
+      const { error } = await supabase
+        .from("connections")
+        .update({ status: "accepted" })
+        .eq("sender_id", senderId)
+        .eq("receiver_id", currentUserId);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error("❌ Error accepting request:", error);
+      throw error;
+    }
   },
 
-  // 7. Cancel / Unfriend (Fixed: Deletes the document in 'friendships')
+  // 7. Cancel / Unfriend
   cancelConnectionRequest: async (
     currentUserId: string,
     dealerId: string
   ): Promise<void> => {
     try {
       console.log(`🚫 Removing connection with ${dealerId}`);
-      const docId = getFriendshipId(currentUserId, dealerId);
       
-      await deleteDoc(doc(db, COLLECTION, docId));
+      const { error } = await supabase
+        .from("connections")
+        .delete()
+        .or(`and(sender_id.eq.${currentUserId},receiver_id.eq.${dealerId}),and(sender_id.eq.${dealerId},receiver_id.eq.${currentUserId})`);
+
+      if (error) throw error;
 
       console.log("✅ Connection removed");
     } catch (error) {

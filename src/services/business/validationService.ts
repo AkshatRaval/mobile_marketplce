@@ -1,7 +1,3 @@
-// src/services/business/validationService.ts
-// Handles ALL form validation logic
-// EXTRACTED FROM: upload.tsx lines 97-101 (validation checks)
-
 interface ValidationResult {
   isValid: boolean;
   error?: string;

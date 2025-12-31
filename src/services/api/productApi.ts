@@ -1,76 +1,39 @@
 // src/services/api/productApi.ts
-// Handles ALL Firebase product operations
-// EXTRACTED FROM: upload.tsx lines 103-125 (handlePost Firebase logic)
+// Handles ALL Supabase product operations
 
-import { db } from "@/FirebaseConfig";
+import { supabase } from "@/src/supabaseConfig";
 import type { Product } from "@/src/types";
-import {
-  addDoc,
-  arrayUnion,
-  collection,
-  deleteDoc,
-  doc,
-  getDoc,
-  getDocs,
-  limit,
-  orderBy,
-  query,
-  updateDoc,
-  where,
-} from "firebase/firestore";
 
 export const productApi = {
   /**
-   * Create a new product AND update user's listings
-   * EXTRACTED FROM: upload.tsx handlePost function
-   * 
-   * This does TWO things:
-   * 1. Creates product document in "products" collection
-   * 2. Updates user's "listings" array in "users" collection
+   * Create a new product
    */
   createProduct: async (productData: {
-    userId: string;
-    dealerName: string;
-    city: string;
+    userId: string; // Changed from owner_id to userId to match DB
     name: string;
     price: string;
     description: string;
     images: string[];
   }): Promise<string> => {
     try {
-    // console.log("📝 Creating product in Firebase...");
-
-      // Step 1: Create product document
-      const docRef = await addDoc(collection(db, "products"), {
-        userId: productData.userId,
-        dealerName: productData.dealerName,
-        city: productData.city,
-        name: productData.name,
-        price: productData.price,
-        description: productData.description,
-        images: productData.images,
-        createdAt: Date.now(),
-      });
-
-    // console.log("✅ Product created with ID:", docRef.id);
-
-      // Step 2: Update user's listings array
-      await updateDoc(doc(db, "users", productData.userId), {
-        listings: arrayUnion({
-          id: docRef.id,
+      const { data, error } = await supabase
+        .from("products")
+        .insert({
+          user_id: productData.userId, // ✅ FIXED: Matches DB column 'user_id'
           name: productData.name,
-          price: productData.price,
-          image: productData.images[0],
-        }),
-      });
+          price: Number(productData.price),
+          description: productData.description,
+          images: productData.images,
+        })
+        .select("id")
+        .single();
 
-    //   console.log("✅ User listings updated");
+      if (error) throw error;
+      return data.id;
 
-      return docRef.id;
-
-    } catch (error) {
-      console.error("❌ Error creating product:", error);
-      throw new Error("Failed to create product in Firebase");
+    } catch (error: any) {
+      console.error("❌ Error creating product:", error.message);
+      throw new Error("Failed to create product");
     }
   },
 
@@ -82,32 +45,60 @@ export const productApi = {
     userId?: string;
   }): Promise<Product[]> => {
     try {
-      let q = query(
-        collection(db, "products"),
-        orderBy("createdAt", "desc")
-      );
+      // 1. Start building the query
+      let query = supabase
+        .from("products")
+        .select(`
+          *,
+          profiles (
+            display_name,
+            shop_name,
+            city,
+            photo_url
+          )
+        `);
 
+      // 2. Apply Filters
       if (filters?.userId) {
-        q = query(q, where("userId", "==", filters.userId));
+        query = query.eq("user_id", filters.userId); // ✅ FIXED
       }
+
+      // 3. Apply Modifiers
+      query = query.order("created_at", { ascending: false });
 
       if (filters?.limit) {
-        q = query(q, limit(filters.limit));
+        query = query.limit(filters.limit);
       }
 
-      const querySnapshot = await getDocs(q);
-      const products: Product[] = [];
+      // 4. Execute Query
+      const { data, error } = await query;
 
-      querySnapshot.forEach((doc) => {
-        products.push({ id: doc.id, ...doc.data() } as Product);
-      });
+      if (error) {
+        console.error("Supabase Select Error:", error.message);
+        throw error;
+      }
 
-    //   console.log(`✅ Fetched ${products.length} products`);
+      // 5. Map snake_case DB fields to camelCase App types
+      const products: Product[] = data.map((doc: any) => ({
+        id: doc.id,
+        userId: doc.user_id, // ✅ FIXED
+        name: doc.name,
+        price: doc.price,
+        description: doc.description,
+        images: doc.images || [],
+        image: doc.images?.[0] || null,
+        createdAt: doc.created_at ? new Date(doc.created_at).getTime() : Date.now(),
+        
+        dealerName: doc.profiles?.display_name || doc.profiles?.shop_name || "Unknown",
+        city: doc.profiles?.city || "Unknown",
+        dealerPhoto: doc.profiles?.photo_url || null,
+      }));
+
       return products;
 
-    } catch (error) {
-      console.error("❌ Error fetching products:", error);
-      throw new Error("Failed to fetch products");
+    } catch (error: any) {
+      console.error("❌ Error fetching products:", error.message);
+      return [];
     }
   },
 
@@ -116,17 +107,39 @@ export const productApi = {
    */
   getProductById: async (productId: string): Promise<Product | null> => {
     try {
-      const docSnap = await getDoc(doc(db, "products", productId));
-      
-      if (docSnap.exists()) {
-        return { id: docSnap.id, ...docSnap.data() } as Product;
-      }
-      
-      return null;
+      const { data, error } = await supabase
+        .from("products")
+        .select(`
+          *,
+          profiles (
+            display_name,
+            shop_name,
+            city,
+            photo_url
+          )
+        `)
+        .eq("id", productId)
+        .single();
 
-    } catch (error) {
-      console.error("❌ Error getting product:", error);
-      throw new Error("Failed to fetch product");
+      if (error || !data) return null;
+
+      return {
+        id: data.id,
+        userId: data.user_id, // ✅ FIXED
+        name: data.name,
+        price: data.price,
+        description: data.description,
+        images: data.images || [],
+        image: data.images?.[0] || null,
+        createdAt: data.created_at ? new Date(data.created_at).getTime() : Date.now(),
+        dealerName: data.profiles?.display_name || data.profiles?.shop_name || "Unknown",
+        city: data.profiles?.city || "Unknown",
+        dealerPhoto: data.profiles?.photo_url || null,
+      } as Product;
+
+    } catch (error: any) {
+      console.error("❌ Error getting product:", error.message);
+      return null;
     }
   },
 
@@ -138,15 +151,22 @@ export const productApi = {
     updates: Partial<Product>
   ): Promise<void> => {
     try {
-      await updateDoc(doc(db, "products", productId), {
-        ...updates,
-        updatedAt: Date.now(),
-      });
+      const cleanUpdates: any = { ...updates };
+      
+      delete cleanUpdates.dealerName;
+      delete cleanUpdates.city;
+      delete cleanUpdates.userId;
+      delete cleanUpdates.createdAt;
 
-    //   console.log("✅ Product updated:", productId);
+      const { error } = await supabase
+        .from("products")
+        .update(cleanUpdates)
+        .eq("id", productId);
 
-    } catch (error) {
-      console.error("❌ Error updating product:", error);
+      if (error) throw error;
+
+    } catch (error: any) {
+      console.error("❌ Error updating product:", error.message);
       throw new Error("Failed to update product");
     }
   },
@@ -156,52 +176,39 @@ export const productApi = {
    */
   deleteProduct: async (productId: string): Promise<void> => {
     try {
-      await deleteDoc(doc(db, "products", productId));
-    //   console.log("✅ Product deleted:", productId);
+      const { error } = await supabase
+        .from("products")
+        .delete()
+        .eq("id", productId);
 
-    } catch (error) {
-      console.error("❌ Error deleting product:", error);
+      if (error) throw error;
+
+    } catch (error: any) {
+      console.error("❌ Error deleting product:", error.message);
       throw new Error("Failed to delete product");
     }
   },
 
   /**
-   * Search products (client-side filtering)
+   * Search products
    */
   searchProducts: async (
     searchText: string,
     maxResults: number = 50
   ): Promise<Product[]> => {
     try {
-      const q = query(
-        collection(db, "products"),
-        orderBy("createdAt", "desc"),
-        limit(maxResults)
-      );
+      const allProducts = await productApi.getAllProducts({ limit: maxResults });
       
-      const querySnapshot = await getDocs(q);
-      const searchTerms = searchText
-        .toLowerCase()
-        .split(" ")
-        .filter((t) => t.length > 0);
+      const searchTerms = searchText.toLowerCase().split(" ").filter((t) => t.length > 0);
       
-      const filteredProducts: Product[] = [];
-
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        const fullText = `${data.name} ${data.description} ${data.dealerName} ${data.extractedData?.brand} ${data.extractedData?.model}`.toLowerCase();
-
-        if (searchTerms.every((term) => fullText.includes(term))) {
-          filteredProducts.push({ id: doc.id, ...data } as Product);
-        }
+      return allProducts.filter((p) => {
+        const fullText = `${p.name} ${p.description || ""} ${p.dealerName || ""} ${p.city || ""}`.toLowerCase();
+        return searchTerms.every((term) => fullText.includes(term));
       });
 
-    //   console.log(`✅ Search found ${filteredProducts.length} results`);
-      return filteredProducts;
-
-    } catch (error) {
-      console.error("❌ Error searching products:", error);
-      throw new Error("Failed to search products");
+    } catch (error: any) {
+      console.error("❌ Error searching products:", error.message);
+      return [];
     }
   },
 };

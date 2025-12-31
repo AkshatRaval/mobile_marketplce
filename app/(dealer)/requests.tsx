@@ -53,7 +53,7 @@ export default function RequestsPage() {
    * SIMPLIFIED - just calls requestApi
    */
   const handleMenuAction = (item: MarketRequest) => {
-    if (user?.uid !== item.dealerId) return;
+    if (user?.id !== item.dealerId) return;
 
     Alert.alert("Manage Request", `Options for ${item.title}`, [
       {
@@ -86,7 +86,7 @@ export default function RequestsPage() {
    * Render request card
    */
   const renderItem = ({ item }: { item: MarketRequest }) => {
-    const isOwner = user?.uid === item.dealerId;
+    const isOwner = user?.id === item.dealerId;
     const isFulfilled = item.status === "fulfilled";
 
     return (

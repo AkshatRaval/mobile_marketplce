@@ -53,8 +53,7 @@ export interface UserProfile {
   phone?: string;
   mobile?: string;
   city?: string;
-  requestReceived?: string[];
-  connections?: string[];
+  privacy: "everyone" | "connections" | "selected" | "none"
   listings?: ProductListing[];
 }
 

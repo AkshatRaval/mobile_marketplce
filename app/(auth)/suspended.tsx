@@ -1,6 +1,6 @@
 // app/suspended.tsx
-import { auth } from "@/FirebaseConfig";
 import { useAuth } from "@/src/context/AuthContext";
+import { supabase } from "@/src/supabaseConfig";
 import { Ionicons } from "@expo/vector-icons";
 import { Redirect, useRouter } from "expo-router";
 import {
@@ -20,17 +20,19 @@ export default function Suspended() {
   const router = useRouter();
 
   if (!user) return <Redirect href="/login" />;
-  if (userDoc?.onboardingStatus !== "suspended") {
+  
+  // Supabase returns snake_case columns in userDoc
+  if (userDoc?.onboarding_status !== "suspended") {
     return <Redirect href="/" />;
   }
 
   const handleLogout = async () => {
-    await auth.signOut();
+    await supabase.auth.signOut();
     router.replace("/login");
   };
 
   const handleWhatsApp = () => {
-    const msg = `Hello, my account has been suspended. Support ID: ${user.uid.slice(0, 8)}`;
+    const msg = `Hello, my account has been suspended. Support ID: ${user.id.slice(0, 8)}`;
     Linking.openURL(`whatsapp://send?text=${encodeURIComponent(msg)}&phone=${SUPPORT_PHONE}`);
   };
 
@@ -40,7 +42,7 @@ export default function Suspended() {
 
   const handleEmail = () => {
     const subject = "Account Suspended - Support Request";
-    const body = `Support ID: ${user.uid.slice(0, 8)}\n\nMy account has been suspended. Please help.`;
+    const body = `Support ID: ${user.id.slice(0, 8)}\n\nMy account has been suspended. Please help.`;
     Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
   };
 
@@ -93,7 +95,7 @@ export default function Suspended() {
 
           <View className="mt-4 pt-4 border-t border-gray-200">
             <Text className="text-center text-gray-400 text-xs">
-              Support ID: {user.uid.slice(0, 8)}
+              Support ID: {user.id.slice(0, 8)}
             </Text>
           </View>
         </View>

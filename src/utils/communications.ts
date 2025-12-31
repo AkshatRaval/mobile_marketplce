@@ -1,5 +1,5 @@
 // src/utils/communications.ts
-// Communication utilities (WhatsApp, Phone, etc.)
+// Communication utilities (WhatsApp, Phone, etc.) - Backend Agnostic
 
 import { Alert, Linking } from "react-native";
 

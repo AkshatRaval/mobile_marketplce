@@ -1,7 +1,3 @@
-// src/hooks/useMarketRequests.ts
-// Manages real-time market requests data
-// EXTRACTED FROM: requests.tsx useEffect (lines 39-58)
-
 import { requestApi } from "@/src/services/api/requestApi";
 import type { MarketRequest } from "@/src/types";
 import { useEffect, useState } from "react";

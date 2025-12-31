@@ -1,156 +1,250 @@
-// src/services/api/profileApi.ts
-// ALL Firebase profile operations
-// EXTRACTED FROM: profile.tsx lines 162-296
-
-import { auth, db } from "@/FirebaseConfig";
-import {
-  collection,
-  deleteDoc,
-  doc,
-  getDoc,
-  onSnapshot,
-  query,
-  Unsubscribe,
-  updateDoc,
-  where,
-} from "firebase/firestore";
+import { supabase } from "@/src/supabaseConfig";
+import type { Product, UserProfile } from "@/src/types/index";
 
 export const profileApi = {
   /**
-   * Subscribe to user profile real-time updates
-   * EXTRACTED FROM: profile.tsx lines 162-176
-   * 
-   * LINE 163: if (!user?.uid) return;
-   * LINE 164: const unsub = onSnapshot(doc(db, "users", user.uid), ...)
-   * LINE 165-172: Process profile data and listings
+   * Get User Profile by ID (One-time fetch)
+   */
+  getUserProfile: async (userId: string): Promise<UserProfile | null> => {
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", userId)
+        .single();
+
+      if (error) throw error;
+      // @ts-ignore
+      return {
+        uid: data.id,
+        displayName: data.display_name || "",
+        shopName: data.shop_name || "",
+        photoURL: data.photo_url || null, // Allow null for photos usually
+        email: data.email || "",
+        phone: data.phone || "",
+        city: data.city || "",
+        role: data.role || "dealer", // Default role fallback
+        privacySettings: data.privacy_settings || "Everyone",
+        onboardingStatus: data.onboarding_status || "submitted",
+      } as UserProfile;
+    } catch (error: any) {
+      console.error("❌ Error fetching profile:", error.message);
+      return null;
+    }
+  },
+
+  /**
+   * Get User Posts (One-time fetch)
+   */
+  getUserPosts: async (userId: string): Promise<Product[]> => {
+    try {
+      const { data, error } = await supabase
+        .from("products")
+        .select("*")
+        .eq("user_id", userId) // ✅ FIXED: matches DB column
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      return data.map((doc: any) => ({
+        id: doc.id,
+        userId: doc.user_id, // ✅ FIXED
+        name: doc.name,
+        price: doc.price,
+        description: doc.description,
+        images: doc.images || [],
+        image: doc.images?.[0] || null,
+        createdAt: doc.created_at
+          ? new Date(doc.created_at).getTime()
+          : Date.now(),
+        dealerName: "",
+        city: "",
+      }));
+    } catch (error: any) {
+      console.error("❌ Error fetching user posts:", error.message);
+      return [];
+    }
+  },
+
+  /**
+   * Subscribe to user profile AND their listings (Real-time)
    */
   subscribeToProfile: (
     userId: string,
     onUpdate: (profileData: any, listings: any[]) => void,
     onError?: (error: Error) => void
-  ): Unsubscribe => {
-    // console.log(`👂 Subscribing to profile: ${userId}`);
+  ) => {
+    let profileCache: any = null;
+    let listingsCache: any[] = [];
 
-    const unsubscribe = onSnapshot(
-      doc(db, "users", userId),
-      (docSnap) => {
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          
-          // LINE 169: setProfileData(data);
-          // LINE 170: setListings([...(data.listings || [])].reverse());
-          const listings = [...(data.listings || [])].reverse();
-          
-          // console.log(`✅ Profile updated: ${listings.length} listings`);
-          onUpdate(data, listings);
-        }
-      },
-      (error) => {
-        console.error("❌ Error fetching profile:", error);
-        if (onError) onError(error as Error);
+    // Helper to fetch latest data and update UI
+    const refreshData = async () => {
+      try {
+        // 1. Fetch Profile
+        const { data: profile, error: profileError } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", userId)
+          .single();
+
+        if (profileError) throw profileError;
+
+        // 2. Fetch Listings (Products)
+        const { data: products, error: productsError } = await supabase
+          .from("products")
+          .select("*")
+          .eq("user_id", userId) // ✅ FIXED: Changed owner_id to user_id
+          .order("created_at", { ascending: false });
+
+        if (productsError) throw productsError;
+
+        // Map snake_case to camelCase for frontend compatibility
+        const formattedProfile = {
+          uid: profile.id,
+          displayName: profile.display_name,
+          shopName: profile.shop_name,
+          photoURL: profile.photo_url,
+          email: profile.email,
+          phone: profile.phone,
+          city: profile.city,
+          role: profile.role,
+          privacySettings: profile.privacy_settings,
+          onboardingStatus: profile.onboarding_status,
+        };
+
+        const formattedListings = products.map((p) => ({
+          id: p.id,
+          name: p.name,
+          price: p.price,
+          description: p.description,
+          images: p.images || [],
+          // Map back to format UI expects
+          userId: p.user_id, // ✅ FIXED: Changed owner_id to user_id
+          createdAt: p.created_at
+            ? new Date(p.created_at).getTime()
+            : Date.now(),
+        }));
+
+        profileCache = formattedProfile;
+        listingsCache = formattedListings;
+
+        onUpdate(formattedProfile, formattedListings);
+      } catch (err: any) {
+        console.error("❌ Error fetching profile data:", err);
+        if (onError) onError(err);
       }
-    );
+    };
 
-    return unsubscribe;
+    // Initial Fetch
+    refreshData();
+
+    // 3. Set up Real-time Listeners
+    const channel = supabase
+      .channel(`profile_watch_${userId}`)
+      // Listen for profile changes
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "profiles",
+          filter: `id=eq.${userId}`,
+        },
+        () => {
+          console.log("🔔 Profile updated, refreshing...");
+          refreshData();
+        }
+      )
+      // Listen for product changes (listings)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "products",
+          filter: `user_id=eq.${userId}`, // ✅ FIXED: Changed owner_id to user_id
+        },
+        () => {
+          console.log("🔔 Listings updated, refreshing...");
+          refreshData();
+        }
+      )
+      .subscribe();
+
+    // Return unsubscribe function
+    return () => {
+      supabase.removeChannel(channel);
+    };
   },
 
   /**
-   * Subscribe to connections users
-   * EXTRACTED FROM: profile.tsx lines 178-187
-   * 
-   * LINE 179-181: Check if connections exist
-   * LINE 182: const ids = profileData.connections.slice(0, 10);
-   * LINE 183: const q = query(collection(db, "users"), where("uid", "in", ids));
-   * LINE 184-186: onSnapshot with user mapping
+   * Subscribe to a list of connection user IDs
    */
   subscribeToConnections: (
     connectionIds: string[],
     onUpdate: (users: any[]) => void,
     onError?: (error: Error) => void
-  ): Unsubscribe | null => {
+  ) => {
     if (!connectionIds || connectionIds.length === 0) {
       onUpdate([]);
       return null;
     }
 
-    // console.log(`👥 Subscribing to ${connectionIds.length} connections`);
+    const ids = connectionIds.slice(0, 10); // Limit to 10 for safety
 
-    // Firebase 'in' query limit is 10
-    const ids = connectionIds.slice(0, 10);
+    const fetchConnections = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("*")
+          .in("id", ids);
 
-    const q = query(
-      collection(db, "users"),
-      where("uid", "in", ids)
-    );
+        if (error) throw error;
 
-    const unsubscribe = onSnapshot(
-      q,
-      (snap) => {
-        // LINE 185: snap.docs.map((d) => ({ uid: d.id, ...d.data() }))
-        const users = snap.docs.map((d) => ({
-          uid: d.id,
-          ...d.data(),
+        const formattedUsers = data.map((u) => ({
+          uid: u.id,
+          displayName: u.display_name,
+          shopName: u.shop_name,
+          photoURL: u.photo_url,
+          city: u.city,
         }));
 
-        // console.log(`✅ Fetched ${users.length} connection profiles`);
-        onUpdate(users);
-      },
-      (error) => {
-        console.error("❌ Error fetching connections:", error);
-        if (onError) onError(error as Error);
+        onUpdate(formattedUsers);
+      } catch (err: any) {
+        if (onError) onError(err);
       }
-    );
+    };
 
-    return unsubscribe;
+    fetchConnections();
+    return () => {};
   },
 
   /**
    * Delete a product listing
-   * EXTRACTED FROM: profile.tsx lines 238-263
-   * 
-   * LINE 241: const productRef = doc(db, "products", selectedItem.id);
-   * LINE 242-246: Get product data for images
-   * LINE 249: await deleteDoc(productRef);
-   * LINE 250-252: Filter listings
-   * LINE 253: Update user document
    */
   deleteProduct: async (
     productId: string,
     userId: string,
     currentListings: any[]
-  ): Promise<any[]> => {
+  ): Promise<string[]> => {
     try {
-      // console.log(`🗑️ Deleting product: ${productId}`);
+      // 1. Get image URLs first
+      const { data: product } = await supabase
+        .from("products")
+        .select("images")
+        .eq("id", productId)
+        .single();
 
-      // Get product document
-      const productRef = doc(db, "products", productId);
-      const productSnap = await getDoc(productRef);
+      // 2. Delete the row
+      const { error } = await supabase
+        .from("products")
+        .delete()
+        .eq("id", productId);
 
-      // Get images array for deletion
-      let productImages: string[] = [];
-      if (productSnap.exists()) {
-        const data = productSnap.data();
-        productImages = data.images || [];
-      }
+      if (error) throw error;
 
-      // Delete product document
-      await deleteDoc(productRef);
-      // console.log("✅ Product document deleted");
-
-      // Update user's listings array
-      const updatedList = currentListings.filter(
-        (l: any) => l.id !== productId
-      );
-
-      await updateDoc(doc(db, "users", userId), {
-        listings: updatedList,
-      });
-
-      // console.log("✅ User listings updated");
-
-      return productImages; // Return images for Cloudinary deletion
-
-    } catch (error) {
+      return product?.images || [];
+    } catch (error: any) {
       console.error("❌ Error deleting product:", error);
       throw new Error("Failed to delete product");
     }
@@ -158,12 +252,6 @@ export const profileApi = {
 
   /**
    * Update product details
-   * EXTRACTED FROM: profile.tsx lines 265-283
-   * 
-   * LINE 269-273: Build updated fields
-   * LINE 275: Update product document
-   * LINE 277-279: Update listings array
-   * LINE 280: Update user document
    */
   updateProduct: async (
     productId: string,
@@ -176,41 +264,99 @@ export const profileApi = {
     currentListings: any[]
   ): Promise<void> => {
     try {
-      // console.log(`📝 Updating product: ${productId}`);
+      const { error } = await supabase
+        .from("products")
+        .update(updates)
+        .eq("id", productId);
 
-      // Update product document
-      await updateDoc(doc(db, "products", productId), updates);
-      // console.log("✅ Product document updated");
-
-      // Update in user's listings array
-      const updatedList = currentListings.map((l: any) =>
-        l.id === productId ? { ...l, ...updates } : l
-      );
-
-      await updateDoc(doc(db, "users", userId), {
-        listings: updatedList,
-      });
-
-      // console.log("✅ User listings updated");
-
-    } catch (error) {
+      if (error) throw error;
+    } catch (error: any) {
       console.error("❌ Error updating product:", error);
       throw new Error("Failed to update product");
     }
   },
 
   /**
+   * Update User Profile (Photo, Privacy, etc.)
+   */
+  updateUser: async (userId: string, data: any): Promise<void> => {
+    try {
+      console.log(`👤 Updating user ${userId}...`);
+
+      const dbUpdates: any = {};
+      if (data.photoURL !== undefined) dbUpdates.photo_url = data.photoURL;
+      if (data.privacySettings !== undefined)
+        dbUpdates.privacy_settings = data.privacySettings;
+      if (data.displayName !== undefined)
+        dbUpdates.display_name = data.displayName;
+      if (data.shopName !== undefined) dbUpdates.shop_name = data.shopName;
+
+      const { error } = await supabase
+        .from("profiles")
+        .update(dbUpdates)
+        .eq("id", userId);
+
+      if (error) throw error;
+      console.log("✅ User updated successfully");
+    } catch (error: any) {
+      console.error("❌ Error updating user:", error);
+      throw new Error("Failed to update user profile");
+    }
+  },
+
+  /**
    * Sign out user
-   * EXTRACTED FROM: profile.tsx line 291
    */
   signOut: async (): Promise<void> => {
     try {
-      // console.log("👋 Signing out...");
-      await auth.signOut();
-      // console.log("✅ Signed out successfully");
-    } catch (error) {
+      await supabase.auth.signOut();
+    } catch (error: any) {
       console.error("❌ Error signing out:", error);
       throw new Error("Failed to sign out");
+    }
+  },
+
+  /**
+   * Log a Sale
+   */
+  logSale: async (
+    userId: string,
+    product: any,
+    saleDetails: {
+      type: "fast" | "detailed";
+      soldPrice: string;
+      buyerName?: string;
+      imei1?: string;
+      imei2?: string;
+      notes?: string;
+    }
+  ): Promise<void> => {
+    try {
+      // 1. Insert into Sales Table
+      const { error: saleError } = await supabase.from("sales").insert({
+        seller_id: userId,
+        product_name: product.name,
+        sold_price: Number(saleDetails.soldPrice),
+        buyer_name: saleDetails.buyerName,
+        imei1: saleDetails.imei1,
+        imei2: saleDetails.imei2,
+        notes: saleDetails.notes,
+      });
+
+      if (saleError) throw saleError;
+
+      // 2. Delete from Products Table
+      const { error: deleteError } = await supabase
+        .from("products")
+        .delete()
+        .eq("id", product.id);
+
+      if (deleteError) throw deleteError;
+
+      console.log("✅ Sale logged successfully");
+    } catch (error: any) {
+      console.error("❌ Error logging sale:", error);
+      throw new Error("Failed to log sale");
     }
   },
 };

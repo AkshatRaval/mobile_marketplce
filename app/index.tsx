@@ -33,9 +33,9 @@ export default function Index() {
   // 4. DEALER ROUTE
   if (userDoc?.role === "dealer") {
     // CRITICAL: Check if they are actually approved to enter
-    if (userDoc?.onboardingStatus === "approved") {
+    if (userDoc?.onboarding_status === "approved") {
       return <Redirect href="/(dealer)/home" />;
-    } else if(userDoc?.onboardingStatus === "suspended"){
+    } else if(userDoc?.onboarding_status === "suspended"){
       // If pending, rejected, or submitted, send back to onboarding status screen
       return <Redirect href="/(auth)/suspended" />;
     }else {

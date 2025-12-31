@@ -28,6 +28,7 @@ export default function Signup() {
   const [loading, setLoading] = useState(false);
 
   const signup = async () => {
+    // 1. Validate Required Fields
     const requiredCheck = signupValidation.validateRequired({
       name,
       shopName,
@@ -40,12 +41,14 @@ export default function Signup() {
       return;
     }
 
+    // 2. Validate Email Format
     const emailCheck = signupValidation.validateEmail(email);
     if (!emailCheck.valid) {
       Alert.alert("Invalid Email", emailCheck.error);
       return;
     }
 
+    // 3. Validate Phone Format
     const phoneCheck = signupValidation.validatePhone(phone);
     if (!phoneCheck.valid) {
       Alert.alert("Invalid Phone", phoneCheck.error);
@@ -55,19 +58,32 @@ export default function Signup() {
     setLoading(true);
 
     try {
-      await authApi.signUp(emailCheck.valid ? email.trim().toLowerCase() : email, password, {
-        displayName: name.trim(),
-        shopName: shopName.trim(),
-        phone: phoneCheck.cleaned!,
-      });
+      // 4. Call Auth API (Supabase)
+      await authApi.signUp(
+        emailCheck.valid ? email.trim().toLowerCase() : email,
+        password,
+        {
+          displayName: name.trim(),
+          shopName: shopName.trim(),
+          phone: phoneCheck.cleaned!,
+        }
+      );
 
+      // 5. Navigate to Onboarding on Success
       router.replace("/onboarding");
+
     } catch (error: any) {
       let msg = error.message;
-      if (msg.includes("email-already-in-use"))
-        msg = "This email is already registered.";
-      if (msg.includes("weak-password"))
+
+      // Supabase specific error handling
+      if (msg.includes("User already registered")) {
+        msg = "This email is already registered. Please login.";
+      } else if (msg.includes("Password should be at least")) {
         msg = "Password should be at least 6 characters.";
+      } else if (msg.includes("weak_password")) {
+        msg = "Password is too weak.";
+      }
+
       Alert.alert("Registration Failed", msg);
     } finally {
       setLoading(false);

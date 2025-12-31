@@ -33,14 +33,14 @@ export default function PublicDealerProfile() {
 
   // 2. Logic (Safe ID handling)
   const targetId = Array.isArray(id) ? id[0] : id;
-  const { status: requestStatus } = useConnectionStatus(user?.uid, targetId);
-  const { processing, handleConnect } = useConnectionActions(user?.uid, targetId);
+  const { status: requestStatus } = useConnectionStatus(user?.id, targetId);
+  const { processing, handleConnect } = useConnectionActions(user?.id, targetId);
 
   const [isViewerVisible, setIsViewerVisible] = useState(false);
   const [activeProduct, setActiveProduct] = useState<any>(null);
 
   useEffect(() => {
-    if (user && targetId === user.uid) {
+    if (user && targetId === user.id) {
       router.replace("/(dealer)/profile");
     }
   }, [targetId, user]);
@@ -68,7 +68,7 @@ export default function PublicDealerProfile() {
   // ✅ FIXED NAVIGATION PATH
   const handleConnectionPress = (userId: string) => {
     console.log("Connection pressed:", userId);
-    if (userId === user?.uid) {
+    if (userId === user?.id) {
       router.push("/(dealer)/profile");
     } else {
       router.push({

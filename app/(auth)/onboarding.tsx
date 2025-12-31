@@ -20,20 +20,30 @@ const SUPPORT_EMAIL = "support@yourcompany.com";
 const WHATSAPP_MSG = "Hello, I am waiting for my account approval. My Shop Name is: ";
 
 export default function Onboarding() {
-  const { user, userDoc } = useAuth();
+  const { user, userDoc, refreshProfile } = useAuth(); // ✅ Get refresh function
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
 
+  // Protected Route Logic
   if (!user) return <Redirect href="/login" />;
-  if (userDoc?.onboardingStatus === "approved") {
+  
+  // If approved, kick them to the main app
+  if (userDoc?.onboarding_status === "approved") {
     return <Redirect href="/" />;
   }
 
   const submitForApproval = async () => {
     setSubmitting(true);
     try {
-      await authApi.submitForApproval(user.uid);
+      // 1. Update Supabase
+      await authApi.submitForApproval(user.id);
+      
+      // 2. Force Context Refresh so UI updates to "Verification in Progress"
+      await refreshProfile(); 
+      
+      Alert.alert("Success", "Request submitted successfully.");
     } catch (error) {
+      console.error(error);
       Alert.alert("Error", "Could not submit request. Try again.");
     } finally {
       setSubmitting(false);
@@ -41,7 +51,8 @@ export default function Onboarding() {
   };
 
   const handleWhatsApp = () => {
-    let url = `whatsapp://send?text=${WHATSAPP_MSG}&phone=${SUPPORT_PHONE}`;
+    const shopName = userDoc?.shop_name || "Unknown";
+    let url = `whatsapp://send?text=${WHATSAPP_MSG}${shopName}&phone=${SUPPORT_PHONE}`;
     Linking.openURL(url).catch(() => {
       Alert.alert("Error", "WhatsApp is not installed on this device");
     });
@@ -55,7 +66,8 @@ export default function Onboarding() {
     Linking.openURL(`mailto:${SUPPORT_EMAIL}`);
   };
 
-  const isSubmitted = userDoc?.onboardingStatus === "submitted";
+  // Check status (snake_case from Supabase)
+  const isSubmitted = userDoc?.onboarding_status === "submitted";
 
   return (
     <SafeAreaView className="flex-1 bg-white">
@@ -129,10 +141,17 @@ export default function Onboarding() {
 
           <View className="mt-4 pt-4 border-t border-gray-200">
             <Text className="text-center text-gray-400 text-xs">
-              Support ID: {user.uid.slice(0, 8)}
+              Support ID: {user.id.slice(0, 8)}
             </Text>
           </View>
         </View>
+
+        {/* Added Manual Refresh Button for UX */}
+        {isSubmitted && (
+             <TouchableOpacity onPress={refreshProfile} className="mt-8">
+                <Text className="text-indigo-600 font-bold">Check Status Again</Text>
+             </TouchableOpacity>
+        )}
 
         <View className="mt-4 pt-4">
           <Text

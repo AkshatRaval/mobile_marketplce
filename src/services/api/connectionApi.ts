@@ -1,49 +1,67 @@
 // src/services/api/connectionApi.ts
-// Handles ALL connection request operations (accept/reject)
-// EXTRACTED FROM: home.tsx lines 383-418
-
-import { db } from "@/FirebaseConfig";
-import {
-    arrayRemove,
-    arrayUnion,
-    doc,
-    updateDoc,
-    writeBatch,
-} from "firebase/firestore";
+import { supabase } from "@/src/supabaseConfig";
 
 export const connectionApi = {
+
+  /**
+   * Send connection request to another user
+   * (Creates a new row in 'connections' table)
+   */
+  sendRequest: async (
+    currentUserId: string,
+    targetUserId: string
+  ): Promise<void> => {
+    try {
+      console.log(`📤 Sending request: ${currentUserId} -> ${targetUserId}`);
+
+      // Check if connection already exists to prevent duplicates
+      const { data: existing } = await supabase
+        .from("connections")
+        .select("id")
+        .or(`and(sender_id.eq.${currentUserId},receiver_id.eq.${targetUserId}),and(sender_id.eq.${targetUserId},receiver_id.eq.${currentUserId})`)
+        .single();
+
+      if (existing) {
+        console.log("⚠️ Connection already exists or pending");
+        return;
+      }
+
+      const { error } = await supabase.from("connections").insert({
+        sender_id: currentUserId,
+        receiver_id: targetUserId,
+        status: "pending",
+        users: [currentUserId, targetUserId], // Helper array for easier searching
+      });
+
+      if (error) throw error;
+
+      console.log("✅ Connection request sent");
+
+    } catch (error) {
+      console.error("❌ Error sending request:", error);
+      throw new Error("Failed to send connection request");
+    }
+  },
+
   /**
    * Accept connection request
-   * EXTRACTED FROM: home.tsx handleAccept function (lines 383-404)
-   * 
-   * Does TWO things:
-   * 1. Adds to both users' connections arrays
-   * 2. Removes from requestReceived array
+   * (Updates status from 'pending' to 'accepted')
    */
   acceptRequest: async (
     currentUserId: string,
     targetUserId: string
   ): Promise<void> => {
     try {
-      console.log(`🤝 Accepting connection: ${currentUserId} -> ${targetUserId}`);
+      console.log(`🤝 Accepting connection: ${currentUserId} (Me) <- ${targetUserId} (Sender)`);
 
-      const batch = writeBatch(db);
+      // I am the receiver, they are the sender
+      const { error } = await supabase
+        .from("connections")
+        .update({ status: "accepted" })
+        .eq("sender_id", targetUserId)
+        .eq("receiver_id", currentUserId);
 
-      // Update current user (me)
-      const myRef = doc(db, "users", currentUserId);
-      batch.update(myRef, {
-        connections: arrayUnion(targetUserId),
-        requestReceived: arrayRemove(targetUserId),
-      });
-
-      // Update target user (them)
-      const theirRef = doc(db, "users", targetUserId);
-      batch.update(theirRef, {
-        connections: arrayUnion(currentUserId),
-      });
-
-      // Commit both updates atomically
-      await batch.commit();
+      if (error) throw error;
 
       console.log("✅ Connection request accepted");
 
@@ -55,22 +73,26 @@ export const connectionApi = {
 
   /**
    * Reject connection request
-   * EXTRACTED FROM: home.tsx handleReject function (lines 406-418)
-   * 
-   * Removes user from requestReceived array
+   * (Deletes the pending row)
    */
   rejectRequest: async (
     currentUserId: string,
     targetUserId: string
   ): Promise<void> => {
     try {
-      console.log(`❌ Rejecting connection: ${currentUserId} -> ${targetUserId}`);
+      console.log(`❌ Rejecting connection from: ${targetUserId}`);
 
-      await updateDoc(doc(db, "users", currentUserId), {
-        requestReceived: arrayRemove(targetUserId),
-      });
+      // I am the receiver, they are the sender
+      const { error } = await supabase
+        .from("connections")
+        .delete()
+        .eq("sender_id", targetUserId)
+        .eq("receiver_id", currentUserId)
+        .eq("status", "pending"); // Safety check
 
-      console.log("✅ Connection request rejected");
+      if (error) throw error;
+
+      console.log("✅ Connection request rejected (deleted)");
 
     } catch (error) {
       console.error("❌ Error rejecting request:", error);
@@ -79,29 +101,8 @@ export const connectionApi = {
   },
 
   /**
-   * Send connection request to another user
-   */
-  sendRequest: async (
-    currentUserId: string,
-    targetUserId: string
-  ): Promise<void> => {
-    try {
-      console.log(`📤 Sending request: ${currentUserId} -> ${targetUserId}`);
-
-      await updateDoc(doc(db, "users", targetUserId), {
-        requestReceived: arrayUnion(currentUserId),
-      });
-
-      console.log("✅ Connection request sent");
-
-    } catch (error) {
-      console.error("❌ Error sending request:", error);
-      throw new Error("Failed to send connection request");
-    }
-  },
-
-  /**
    * Remove connection (unfriend)
+   * (Deletes the row regardless of who sent it)
    */
   removeConnection: async (
     currentUserId: string,
@@ -110,19 +111,13 @@ export const connectionApi = {
     try {
       console.log(`🔗 Removing connection: ${currentUserId} <-> ${targetUserId}`);
 
-      const batch = writeBatch(db);
+      // Delete where (Sender=Me AND Receiver=Them) OR (Sender=Them AND Receiver=Me)
+      const { error } = await supabase
+        .from("connections")
+        .delete()
+        .or(`and(sender_id.eq.${currentUserId},receiver_id.eq.${targetUserId}),and(sender_id.eq.${targetUserId},receiver_id.eq.${currentUserId})`);
 
-      const myRef = doc(db, "users", currentUserId);
-      batch.update(myRef, {
-        connections: arrayRemove(targetUserId),
-      });
-
-      const theirRef = doc(db, "users", targetUserId);
-      batch.update(theirRef, {
-        connections: arrayRemove(currentUserId),
-      });
-
-      await batch.commit();
+      if (error) throw error;
 
       console.log("✅ Connection removed");
 

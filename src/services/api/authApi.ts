@@ -1,12 +1,10 @@
 // src/services/api/authApi.ts
-import { auth, db } from "@/FirebaseConfig";
-import {
-    createUserWithEmailAndPassword,
-    signInWithEmailAndPassword,
-} from "firebase/auth";
-import { doc, setDoc, updateDoc } from "firebase/firestore";
+import { supabase } from "@/src/supabaseConfig";
 
 export const authApi = {
+  /**
+   * Sign Up User & Create Profile
+   */
   signUp: async (
     email: string,
     password: string,
@@ -16,41 +14,59 @@ export const authApi = {
       phone: string;
     }
   ) => {
-    const res = await createUserWithEmailAndPassword(auth, email, password);
+    // 1. Create Auth User
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          full_name: userData.displayName, // Metadata for convenience
+        },
+      },
+    });
 
-    await setDoc(doc(db, "users", res.user.uid), {
-      uid: res.user.uid,
-      userEmail: email,
-      displayName: userData.displayName,
-      shopName: userData.shopName,
+    if (authError) throw new Error(authError.message);
+    if (!authData.user) throw new Error("User creation failed");
+
+    const userId = authData.user.id;
+
+    // 2. Insert into 'profiles' table
+    // Matches the schema we created earlier
+    const { error: profileError } = await supabase.from("profiles").insert({
+      id: userId,
+      email: email,
+      display_name: userData.displayName,
+      shop_name: userData.shopName,
       phone: userData.phone,
       role: "dealer",
-      connections: [],
-      requestSent: [],
-      requestReceived: [],
-      onboardingStatus: "submitted",
-      createdAt: Date.now(),
+      onboarding_status: "submitted", // Acts as the "pending-request"
+      privacy_settings: "Everyone",
     });
 
-    await setDoc(doc(db, "pending-request", res.user.uid), {
-      uid: res.user.uid,
-      displayName: userData.displayName,
-      shopName: userData.shopName,
-      phone: userData.phone,
-      status: "pending",
-      requestDate: Date.now(),
-    });
-    return res.user;
+    if (profileError) {
+      console.error("Profile creation error:", profileError);
+      throw new Error(profileError.message);
+    }
+
+    return authData.user;
   },
   
   submitForApproval: async (userId: string) => {
-    await updateDoc(doc(db, "users", userId), {
-      onboardingStatus: "submitted",
-    });
+    const { error } = await supabase
+      .from("profiles")
+      .update({ onboarding_status: "submitted" })
+      .eq("id", userId);
+
+    if (error) throw new Error(error.message);
   },
 
   login: async (email: string, password: string) => {
-    const res = await signInWithEmailAndPassword(auth, email, password);
-    return res.user;
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) throw new Error(error.message);
+    return data.user;
   },
 };

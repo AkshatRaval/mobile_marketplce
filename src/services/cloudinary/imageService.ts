@@ -1,18 +1,35 @@
-// src/services/cloudinary/cloudinaryService.ts
+// src/services/cloudinary/imageService.ts
 // ✨ CONSOLIDATED - ALL Cloudinary operations in ONE place
-// Combines imageService (upload) + cloudinaryService (delete)
 
-import type { CloudinaryUploadResponse } from "@/src/types";
 import * as Crypto from "expo-crypto";
+
+// Define interface locally if not in global types
+export interface CloudinaryUploadResponse {
+  public_id: string;
+  version: number;
+  signature: string;
+  width: number;
+  height: number;
+  format: string;
+  resource_type: string;
+  created_at: string;
+  bytes: number;
+  type: string;
+  url: string;
+  secure_url: string;
+}
 
 // Cloudinary configuration
 const CLOUD_NAME = process.env.EXPO_PUBLIC_CLOUDINARY_NAME;
 const CLOUDINARY_API_KEY = process.env.EXPO_PUBLIC_CLOUDINARY_API_KEY;
 const CLOUDINARY_API_SECRET = process.env.EXPO_PUBLIC_CLOUDINARY_API_SECRET;
-const UPLOAD_PRESET = "phone_images";
+const UPLOAD_PRESET = "phone_images"; // Make sure this exists in your Cloudinary Settings
 const CLOUDINARY_URL = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`;
 
 export const cloudinaryService = {
+  /**
+   * Upload a single image to Cloudinary
+   */
   uploadImage: async (uri: string): Promise<string> => {
     try {
       const formData = new FormData();
@@ -49,6 +66,9 @@ export const cloudinaryService = {
     }
   },
 
+  /**
+   * Upload multiple images in parallel
+   */
   uploadMultipleImages: async (uris: string[]): Promise<string[]> => {
     try {
       console.log(`📤 Uploading ${uris.length} images to Cloudinary...`);
@@ -66,6 +86,9 @@ export const cloudinaryService = {
     }
   },
 
+  /**
+   * Delete a single image from Cloudinary
+   */
   deleteImage: async (imageUrl: string): Promise<void> => {
     if (!imageUrl) {
       console.log("⚠️ No image URL provided");
@@ -82,10 +105,10 @@ export const cloudinaryService = {
         return;
       }
 
-      // Remove version prefix and get filename
+      // Remove version prefix (e.g., v12345/) and get remaining path
       let path = split[1].replace(/^v\d+\//, "");
 
-      // Extract public_id (filename without extension)
+      // Extract public_id (remove file extension)
       const publicId = path.split(".")[0];
 
       // Generate timestamp for signature
@@ -119,13 +142,11 @@ export const cloudinaryService = {
       }
     } catch (error) {
       console.error("❌ Cloudinary delete error:", error);
-     
     }
   },
 
   /**
    * Delete multiple images from Cloudinary
-   * Used when deleting a product with multiple images
    */
   deleteMultipleImages: async (imageUrls: string[]): Promise<void> => {
     if (!imageUrls || imageUrls.length === 0) return;
@@ -160,6 +181,5 @@ export const cloudinaryService = {
 // ========================================
 // LEGACY EXPORTS (for backward compatibility)
 // ========================================
-
 export const uploadToCloudinary = cloudinaryService.uploadImage;
-export const imageService = cloudinaryService; // Alias for existing code
+export const imageService = cloudinaryService;

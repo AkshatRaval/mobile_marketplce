@@ -19,7 +19,6 @@ export function useImagePicker(maxImages: number = 4): UseImagePickerReturn {
 
   /**
    * Pick image from library
-   * EXTRACTED FROM: upload.tsx pickImage function (lines 71-87)
    */
   const addImage = async () => {
     // Check limit
@@ -39,7 +38,6 @@ export function useImagePicker(maxImages: number = 4): UseImagePickerReturn {
       // Add image if not cancelled
       if (!result.canceled && result.assets && result.assets.length > 0) {
         setImages((prev) => [...prev, result.assets[0].uri]);
-        // console.log("✅ Image added:", result.assets[0].uri);
       }
 
     } catch (error) {
@@ -50,7 +48,6 @@ export function useImagePicker(maxImages: number = 4): UseImagePickerReturn {
 
   const removeImage = (index: number) => {
     setImages((prev) => prev.filter((_, i) => i !== index));
-    // console.log("🗑️ Image removed at index:", index);
   };
 
   /**

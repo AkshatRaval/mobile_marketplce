@@ -1,23 +1,14 @@
 // src/services/api/searchApi.ts
-// Firebase search operations
-// EXTRACTED FROM: search.tsx lines 188-208
+// Supabase search operations (Hybrid: Recent fetch + Client-side filtering)
 
-import { db } from "@/FirebaseConfig";
+import { supabase } from "@/src/supabaseConfig";
 import type { Product } from "@/src/types";
-import { collection, getDocs, limit, orderBy, query } from "firebase/firestore";
 
 export const searchApi = {
   /**
    * Search products by text
-   * 
-   * EXTRACTED FROM: search.tsx handleSearch function
-   * LINE 188-194: Firebase query setup
-   * LINE 195-198: Search term processing
-   * LINE 200-208: Client-side filtering
-   * 
-   * @param searchText - Text to search for
-   * @param maxResults - Maximum number of results (default 50)
-   * @returns Array of matching products
+   * * Fetches recent products and filters them based on the search term.
+   * Note: For production with large datasets, consider using Supabase Text Search.
    */
   searchProducts: async (
     searchText: string,
@@ -26,59 +17,62 @@ export const searchApi = {
     try {
       console.log(`🔍 Searching for: "${searchText}"`);
 
-      // STEP 1: Fetch products from Firebase
-      // EXTRACTED FROM: search.tsx lines 188-194
-      const q = query(
-        collection(db, "products"),
-        orderBy("createdAt", "desc"),
-        limit(maxResults)
-      );
-      
-      const querySnapshot = await getDocs(q);
-      console.log(`📦 Fetched ${querySnapshot.size} products from Firebase`);
+      // STEP 1: Fetch products from Supabase with Dealer Info
+      const { data, error } = await supabase
+        .from("products")
+        .select(`
+          *,
+          profiles (
+            id,
+            display_name,
+            shop_name,
+            city,
+            photo_url,
+            phone
+          )
+        `)
+        .order("created_at", { ascending: false })
+        .limit(maxResults);
+
+      if (error) throw error;
+
+      console.log(`📦 Fetched ${data.length} products from Supabase`);
 
       // STEP 2: Process search terms
-      // EXTRACTED FROM: search.tsx lines 195-198
       const searchTerms = searchText
         .toLowerCase()
         .split(" ")
         .filter((t) => t.length > 0);
-      
-      console.log(`📝 Search terms:`, searchTerms);
 
       // STEP 3: Filter results client-side
-      // EXTRACTED FROM: search.tsx lines 200-208
       const filteredData: Product[] = [];
 
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
+      data.forEach((doc: any) => {
+        // Handle joined data flattening
+        const profile = doc.profiles || {};
+        const dealerName = profile.display_name || profile.shop_name || "Unknown";
         
         // Build searchable text from multiple fields
-        // EXTRACTED FROM: search.tsx lines 202-203
-        const fullText = `${data.name} ${data.description} ${data.dealerName} ${data.extractedData?.brand} ${data.extractedData?.model}`.toLowerCase();
+        // Note: extractedData is removed if not in your schema, but kept safe here
+        const fullText = `${doc.name} ${doc.description || ""} ${dealerName} ${profile.city || ""}`.toLowerCase();
 
         // Check if ALL search terms match
-        // EXTRACTED FROM: search.tsx lines 205
         if (searchTerms.every((term) => fullText.includes(term))) {
-          // EXTRACTED FROM: search.tsx line 206
           filteredData.push({
             id: doc.id,
-            userId: data.userId || "",
-            dealerId: data.dealerId,
-            createdBy: data.createdBy,
-            dealerName: data.dealerName || "Unknown",
-            dealerAvatar: data.dealerAvatar,
-            dealerPhone: data.dealerPhone,
-            city: data.city || "Unknown",
-            name: data.name || "",
-            price: data.price || "0",
-            description: data.description || "",
-            images: data.images || [],
-            image: data.image,
-            createdAt: data.createdAt || Date.now(),
-            // updatedAt: data.updatedAt,
-            extractedData: data.extractedData,
-            // tags: data.tags,
+            userId: doc.owner_id, // Map owner_id -> userId
+            dealerId: profile.id,
+            dealerName: dealerName,
+            dealerAvatar: profile.photo_url,
+            dealerPhone: profile.phone,
+            city: profile.city || "Unknown",
+            name: doc.name,
+            price: doc.price,
+            description: doc.description,
+            images: doc.images || [],
+            image: doc.images?.[0], // Fallback for single image view
+            createdAt: new Date(doc.created_at).getTime(),
+            // extractedData: doc.extractedData, // Uncomment if you add JSONB column for this
           });
         }
       });
@@ -86,53 +80,60 @@ export const searchApi = {
       console.log(`✅ Found ${filteredData.length} matching products`);
       return filteredData;
 
-    } catch (error) {
-      console.error("❌ Error searching products:", error);
+    } catch (error: any) {
+      console.error("❌ Error searching products:", error.message);
       throw new Error("Failed to search products");
     }
   },
 
   /**
-   * Get all products (no filter)
-   * Useful for "browse all" functionality
+   * Get all products (Browse All)
    */
   getAllProducts: async (maxResults: number = 50): Promise<Product[]> => {
     try {
-      const q = query(
-        collection(db, "products"),
-        orderBy("createdAt", "desc"),
-        limit(maxResults)
-      );
-      
-      const querySnapshot = await getDocs(q);
-      
-      const products: Product[] = querySnapshot.docs.map((doc) => {
-        const data = doc.data();
+      const { data, error } = await supabase
+        .from("products")
+        .select(`
+          *,
+          profiles (
+            id,
+            display_name,
+            shop_name,
+            city,
+            photo_url,
+            phone
+          )
+        `)
+        .order("created_at", { ascending: false })
+        .limit(maxResults);
+
+      if (error) throw error;
+
+      // Map to Product type
+      const products: Product[] = data.map((doc: any) => {
+        const profile = doc.profiles || {};
+        
         return {
           id: doc.id,
-          userId: data.userId || "",
-          dealerId: data.dealerId,
-          createdBy: data.createdBy,
-          dealerName: data.dealerName || "Unknown",
-          dealerAvatar: data.dealerAvatar,
-          dealerPhone: data.dealerPhone,
-          city: data.city || "Unknown",
-          name: data.name || "",
-          price: data.price || "0",
-          description: data.description || "",
-          images: data.images || [],
-          image: data.image,
-          createdAt: data.createdAt || Date.now(),
-          updatedAt: data.updatedAt,
-          extractedData: data.extractedData,
-          tags: data.tags,
+          userId: doc.owner_id,
+          dealerId: profile.id,
+          dealerName: profile.display_name || profile.shop_name || "Unknown",
+          dealerAvatar: profile.photo_url,
+          dealerPhone: profile.phone,
+          city: profile.city || "Unknown",
+          name: doc.name,
+          price: doc.price,
+          description: doc.description,
+          images: doc.images || [],
+          image: doc.images?.[0],
+          createdAt: new Date(doc.created_at).getTime(),
         };
       });
 
       return products;
 
-    } catch (error) {
-      console.error("❌ Error fetching all products:", error);
+    } catch (error: any) {
+      console.error("❌ Error fetching all products:", error.message);
       throw new Error("Failed to fetch products");
     }
   },

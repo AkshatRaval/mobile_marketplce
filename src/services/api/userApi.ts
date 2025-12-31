@@ -1,17 +1,8 @@
 // src/services/api/userApi.ts
-// Handles ALL user profile operations - FIXED
+// Handles ALL user profile operations - Supabase Version
 
-import { db } from "@/FirebaseConfig";
+import { supabase } from "@/src/supabaseConfig";
 import type { UserProfile } from "@/src/types";
-import {
-    collection,
-    doc,
-    documentId,
-    getDoc,
-    getDocs,
-    query,
-    where,
-} from "firebase/firestore";
 
 export const userApi = {
   /**
@@ -21,33 +12,36 @@ export const userApi = {
     try {
       console.log(`👤 Fetching user profile: ${userId}`);
 
-      const userDocSnap = await getDoc(doc(db, "users", userId));
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", userId)
+        .single();
 
-      if (!userDocSnap.exists()) {
-        console.log("❌ User not found");
+      if (error || !data) {
+        console.log("❌ User not found or error:", error?.message);
         return null;
       }
 
-      const userData = userDocSnap.data();
       console.log("✅ User profile fetched");
 
-      // ✅ FIXED: No duplicate uid
+      // Map snake_case database fields to camelCase UserProfile type
       return {
-        uid: userDocSnap.id,
-        displayName: userData.displayName || "Unknown",
-        email: userData.email,
-        photoURL: userData.photoURL,
-        phoneNumber: userData.phoneNumber,
-        phone: userData.phone,
-        mobile: userData.mobile,
-        city: userData.city,
-        requestReceived: userData.requestReceived,
-        connections: userData.connections,
-        listings: userData.listings,
+        uid: data.id,
+        displayName: data.display_name || "Unknown",
+        email: data.email,
+        photoURL: data.photo_url,
+        phone: data.phone,
+        phoneNumber: data.phone,
+        mobile: data.phone,
+        city: data.city,
+        // ✅ FIXED: Added missing 'privacy' field mapping
+        privacy: data.privacy_settings || "Everyone", 
+        listings: [],
       };
 
-    } catch (error) {
-      console.error("❌ Error fetching user:", error);
+    } catch (error: any) {
+      console.error("❌ Error fetching user:", error.message);
       throw new Error("Failed to fetch user profile");
     }
   },
@@ -59,25 +53,18 @@ export const userApi = {
     try {
       console.log(`📞 Fetching phone number for user: ${userId}`);
 
-      const userDocSnap = await getDoc(doc(db, "users", userId));
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("phone")
+        .eq("id", userId)
+        .single();
 
-      if (!userDocSnap.exists()) {
-        console.log("❌ User not found");
+      if (error || !data || !data.phone) {
+        console.log("❌ User or phone not found");
         return null;
       }
 
-      const userData = userDocSnap.data();
-
-      // Check common field names
-      const rawPhone = 
-        userData.phoneNumber || 
-        userData.phone || 
-        userData.mobile;
-
-      if (!rawPhone) {
-        console.log("❌ No phone number found");
-        return null;
-      }
+      const rawPhone = data.phone;
 
       // Sanitize and format
       let phone = rawPhone.replace(/[^\d]/g, "");
@@ -90,8 +77,8 @@ export const userApi = {
       console.log("✅ Phone number retrieved");
       return phone;
 
-    } catch (error) {
-      console.error("❌ Error fetching phone number:", error);
+    } catch (error: any) {
+      console.error("❌ Error fetching phone number:", error.message);
       throw new Error("Failed to fetch phone number");
     }
   },
@@ -105,41 +92,35 @@ export const userApi = {
         return [];
       }
 
-      // Firebase 'in' query limit is 10
       const safeIds = userIds.slice(0, 10);
-
       console.log(`👥 Fetching ${safeIds.length} user profiles...`);
 
-      const q = query(
-        collection(db, "users"),
-        where(documentId(), "in", safeIds)
-      );
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .in("id", safeIds);
 
-      const snap = await getDocs(q);
+      if (error) throw error;
 
-      const users: UserProfile[] = snap.docs.map((d) => {
-        const data = d.data();
-        // ✅ FIXED: No duplicate uid
-        return {
-          uid: d.id,
-          displayName: data.displayName || "Unknown",
-          email: data.email,
-          photoURL: data.photoURL,
-          phoneNumber: data.phoneNumber,
-          phone: data.phone,
-          mobile: data.mobile,
-          city: data.city,
-          requestReceived: data.requestReceived,
-          connections: data.connections,
-          listings: data.listings,
-        };
-      });
+      const users: UserProfile[] = data.map((d) => ({
+        uid: d.id,
+        displayName: d.display_name || "Unknown",
+        email: d.email,
+        photoURL: d.photo_url,
+        phone: d.phone,
+        phoneNumber: d.phone,
+        mobile: d.phone,
+        city: d.city,
+        // ✅ FIXED: Added missing 'privacy' field mapping
+        privacy: d.privacy_settings || "Everyone",
+        listings: [],
+      }));
 
       console.log(`✅ Fetched ${users.length} profiles`);
       return users;
 
-    } catch (error) {
-      console.error("❌ Error fetching user profiles:", error);
+    } catch (error: any) {
+      console.error("❌ Error fetching user profiles:", error.message);
       throw new Error("Failed to fetch user profiles");
     }
   },
@@ -148,37 +129,6 @@ export const userApi = {
    * Get fresh user data (for refreshing)
    */
   getFreshUserData: async (userId: string): Promise<UserProfile | null> => {
-    try {
-      console.log(`🔄 Refreshing user data: ${userId}`);
-
-      const userSnapshot = await getDoc(doc(db, "users", userId));
-
-      if (!userSnapshot.exists()) {
-        return null;
-      }
-
-      const data = userSnapshot.data();
-
-      console.log("✅ Fresh user data retrieved");
-
-      // ✅ FIXED: No duplicate uid
-      return {
-        uid: userSnapshot.id,
-        displayName: data.displayName || "Unknown",
-        email: data.email,
-        photoURL: data.photoURL,
-        phoneNumber: data.phoneNumber,
-        phone: data.phone,
-        mobile: data.mobile,
-        city: data.city,
-        requestReceived: data.requestReceived,
-        connections: data.connections,
-        listings: data.listings,
-      };
-
-    } catch (error) {
-      console.error("❌ Error refreshing user data:", error);
-      throw new Error("Failed to refresh user data");
-    }
+    return userApi.getUserById(userId);
   },
 };

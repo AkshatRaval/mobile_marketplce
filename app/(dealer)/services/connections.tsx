@@ -27,11 +27,11 @@ export default function MyConnections() {
 
   // ✅ NEW: Fetch logic uses the separate collection API
   const fetchConnections = async () => {
-    if (!user?.uid) return;
+    if (!user?.id) return;
 
     try {
       if (!refreshing) setLoading(true);
-      const connectionsData = await publicProfileApi.fetchDealerConnections(user.uid);
+      const connectionsData = await publicProfileApi.fetchDealerConnections(user.id);
       
       setUsers(connectionsData || []);
     } catch (error) {
@@ -44,7 +44,7 @@ export default function MyConnections() {
 
   useEffect(() => {
     fetchConnections();
-  }, [user?.uid]);
+  }, [user?.id]);
 
   const onRefresh = () => {
     setRefreshing(true);

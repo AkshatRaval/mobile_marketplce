@@ -1,7 +1,4 @@
 // src/hooks/useRequestForm.ts
-// Manages request form state and submission
-// EXTRACTED FROM: requests.tsx form state + handlePostRequest (lines 34-110)
-
 import { useAuth } from "@/src/context/AuthContext";
 import { requestApi } from "@/src/services/api/requestApi";
 import { validationService } from "@/src/services/business/validationService";
@@ -28,7 +25,7 @@ interface UseRequestFormReturn {
 export function useRequestForm(): UseRequestFormReturn {
   const { user, userDoc } = useAuth();
 
-  // Form state - EXTRACTED FROM: requests.tsx lines 34-37
+  // Form state
   const [title, setTitle] = useState("");
   const [budget, setBudget] = useState("");
   const [description, setDescription] = useState("");
@@ -36,16 +33,15 @@ export function useRequestForm(): UseRequestFormReturn {
 
   /**
    * Submit market request
-   * EXTRACTED FROM: requests.tsx handlePostRequest (lines 76-110)
    */
   const submitRequest = async (): Promise<boolean> => {
     // Check if user is logged in
-    if (!user?.uid) {
+    if (!user?.id) {
       Alert.alert("Error", "You must be logged in to post a request");
       return false;
     }
 
-    // VALIDATION - EXTRACTED FROM: requests.tsx lines 78-83
+    // VALIDATION
     const validation = validationService.validateRequestForm({
       title,
       budget,
@@ -59,18 +55,15 @@ export function useRequestForm(): UseRequestFormReturn {
     setSubmitting(true);
 
     try {
-      // console.log("🚀 Submitting market request...");
-
-      // Create request in Firebase
+      // Create request in Supabase
+      // Note: userDoc keys are now snake_case from the profiles table
       await requestApi.createRequest({
         title,
         budget,
         description,
-        dealerId: user.uid,
-        dealerName: userDoc?.displayName || "Unknown Dealer",
+        dealer_id: user.id, // Matches 'dealer_id' column
+        dealer_name: userDoc?.display_name || "Unknown Dealer", // Matches 'dealer_name' column
       });
-
-      // console.log("✅ Request posted successfully");
 
       // Show success message
       Alert.alert("Posted!", "Your request is now live.");
@@ -97,22 +90,16 @@ export function useRequestForm(): UseRequestFormReturn {
     setTitle("");
     setBudget("");
     setDescription("");
-    // console.log("🔄 Request form reset");
   };
 
   return {
-    // State
     title,
     budget,
     description,
     submitting,
-
-    // Setters
     setTitle,
     setBudget,
     setDescription,
-
-    // Actions
     submitRequest,
     reset,
   };
