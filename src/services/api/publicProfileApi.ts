@@ -1,16 +1,18 @@
 // src/services/api/publicProfileApi.ts
 import { supabase } from "@/src/supabaseConfig";
+import { Product } from "@/src/types";
 
 export const publicProfileApi = {
-  
   // 1. Subscribe to Status (Real-time listener on 'connections' table)
   subscribeToConnectionStatus: (
     currentUserId: string,
     dealerId: string,
-    onStatusChange: (status: "none" | "pending" | "connected" | "received") => void,
+    onStatusChange: (
+      status: "none" | "pending" | "connected" | "received"
+    ) => void,
     onError?: (error: Error) => void
   ) => {
-    console.log(`👂 Subscribing to connection status with ${dealerId}`);
+    // console.log(`👂 Subscribing to connection status with ${dealerId}`);
 
     // Helper to fetch current status
     const checkStatus = async () => {
@@ -18,7 +20,9 @@ export const publicProfileApi = {
         const { data, error } = await supabase
           .from("connections")
           .select("*")
-          .or(`and(sender_id.eq.${currentUserId},receiver_id.eq.${dealerId}),and(sender_id.eq.${dealerId},receiver_id.eq.${currentUserId})`)
+          .or(
+            `and(sender_id.eq.${currentUserId},receiver_id.eq.${dealerId}),and(sender_id.eq.${dealerId},receiver_id.eq.${currentUserId})`
+          )
           .maybeSingle(); // Returns null if no row found
 
         if (error) throw error;
@@ -28,9 +32,9 @@ export const publicProfileApi = {
           return;
         }
 
-        if (data.status === 'accepted') {
+        if (data.status === "accepted") {
           onStatusChange("connected");
-        } else if (data.status === 'pending') {
+        } else if (data.status === "pending") {
           if (data.sender_id === currentUserId) {
             onStatusChange("pending"); // I sent it
           } else {
@@ -60,7 +64,7 @@ export const publicProfileApi = {
           // Filter is tricky for OR conditions in realtime, so we listen to all changes involves these users roughly
           // Ideally, we'd filter strictly, but Supabase realtime filters are limited.
           // We'll rely on client-side filtering or just re-checking status on any connection change for these users.
-          filter: `sender_id=in.(${currentUserId},${dealerId})`, 
+          filter: `sender_id=in.(${currentUserId},${dealerId})`,
         },
         () => checkStatus()
       )
@@ -104,25 +108,34 @@ export const publicProfileApi = {
   },
 
   // 3. Fetch Inventory (From 'products' table)
-  fetchDealerInventory: async (dealerId: string): Promise<any[]> => {
+  fetchDealerInventory: async (dealerId: string): Promise<Product[]> => {
     try {
       const { data, error } = await supabase
         .from("products")
         .select("*")
-        .eq("owner_id", dealerId);
+        .eq("user_id", dealerId) // ✅ FIXED: Changed 'owner_id' to 'user_id'
+        .order("created_at", { ascending: false });
 
       if (error) throw error;
 
-      return data.map((p) => ({
-        id: p.id,
-        name: p.name,
-        price: p.price,
-        description: p.description,
-        images: p.images,
-        userId: p.owner_id
+      // Map to frontend Product type
+      return data.map((doc: any) => ({
+        id: doc.id,
+        userId: doc.user_id, // ✅ FIXED
+        name: doc.name,
+        price: doc.price,
+        description: doc.description,
+        images: doc.images || [],
+        image: doc.images?.[0] || null,
+        createdAt: doc.created_at
+          ? new Date(doc.created_at).getTime()
+          : Date.now(),
+        // These are empty because we are already on the dealer's profile
+        dealerName: "",
+        city: "",
       }));
-    } catch (error) {
-      console.error("❌ Error fetching inventory:", error);
+    } catch (error: any) {
+      console.error("❌ Profile fetch error:", error.message);
       throw new Error("Failed to fetch inventory");
     }
   },
@@ -130,7 +143,7 @@ export const publicProfileApi = {
   // 4. Fetch Connections
   fetchDealerConnections: async (dealerId: string): Promise<any[]> => {
     try {
-      console.log(`👥 Finding friends for: ${dealerId}`);
+      // console.log(`👥 Finding friends for: ${dealerId}`);
 
       // Step A: Find accepted connections
       const { data: connections, error } = await supabase
@@ -144,7 +157,7 @@ export const publicProfileApi = {
       if (!connections || connections.length === 0) return [];
 
       // Step B: Extract Friend IDs
-      const friendIds = connections.map(c => 
+      const friendIds = connections.map((c) =>
         c.sender_id === dealerId ? c.receiver_id : c.sender_id
       );
 
@@ -164,7 +177,6 @@ export const publicProfileApi = {
         photoURL: u.photo_url,
         shopName: u.shop_name,
       }));
-
     } catch (error) {
       console.error("❌ Error fetching connections:", error);
       throw new Error("Failed to fetch connections");
@@ -178,15 +190,13 @@ export const publicProfileApi = {
   ): Promise<void> => {
     try {
       console.log(`📤 Sending connection request to ${dealerId}`);
-      
-      const { error } = await supabase
-        .from("connections")
-        .insert({
-          sender_id: currentUserId,
-          receiver_id: dealerId,
-          status: "pending",
-          users: [currentUserId, dealerId] // kept for array searching compatibility if needed
-        });
+
+      const { error } = await supabase.from("connections").insert({
+        sender_id: currentUserId,
+        receiver_id: dealerId,
+        status: "pending",
+        users: [currentUserId, dealerId], // kept for array searching compatibility if needed
+      });
 
       if (error) throw error;
 
@@ -200,7 +210,7 @@ export const publicProfileApi = {
   // 6. Accept Request
   acceptConnectionRequest: async (
     currentUserId: string, // Receiver (Me)
-    senderId: string       // Sender (Them)
+    senderId: string // Sender (Them)
   ): Promise<void> => {
     try {
       const { error } = await supabase
@@ -223,11 +233,13 @@ export const publicProfileApi = {
   ): Promise<void> => {
     try {
       console.log(`🚫 Removing connection with ${dealerId}`);
-      
+
       const { error } = await supabase
         .from("connections")
         .delete()
-        .or(`and(sender_id.eq.${currentUserId},receiver_id.eq.${dealerId}),and(sender_id.eq.${dealerId},receiver_id.eq.${currentUserId})`);
+        .or(
+          `and(sender_id.eq.${currentUserId},receiver_id.eq.${dealerId}),and(sender_id.eq.${dealerId},receiver_id.eq.${currentUserId})`
+        );
 
       if (error) throw error;
 

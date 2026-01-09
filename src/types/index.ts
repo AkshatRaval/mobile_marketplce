@@ -1,21 +1,20 @@
 export interface Product {
   id: string;
-  userId?: string;
+  userId: string;
   dealerId?: string;
   ownerId?: string;
-  postedBy?: string;
-  createdBy?: string;
   name: string;
-  price: string;
-  images: string[];
-  extractedData?: ExtractedData;
-  image?: string;
+  price: string | number;
   description: string;
+  images: string[];
+  image?: string;
   dealerName: string;
+  dealerPhoto?: string | null;
   dealerAvatar?: string;
   dealerPhone?: string;
   city: string;
   createdAt: number;
+  extractedData?: ExtractedData;
 }
 
 export interface MarketRequest {
@@ -34,6 +33,7 @@ export interface ExtractedData {
   model?: string;
   ramGb?: number;
   storageGb?: number;
+  [key: string]: any;
 }
 
 export interface CloudinaryUploadResponse {
@@ -45,15 +45,16 @@ export interface CloudinaryUploadResponse {
 }
 
 export interface UserProfile {
-  uid: string; // ✅ FIXED: Added uid field
+  uid: string;
   displayName: string;
   email?: string;
+  shopName: string;
   photoURL?: string;
   phoneNumber?: string;
   phone?: string;
   mobile?: string;
   city?: string;
-  privacy: "everyone" | "connections" | "selected" | "none"
+  privacy: "everyone" | "connections" | "selected" | "none";
   listings?: ProductListing[];
 }
 

@@ -11,10 +11,7 @@ interface UseProfileActionsReturn {
   logout: () => void;
   uploadProfileImage: (uri: string) => Promise<string | null>;
   updatePrivacySettings: (setting: string) => Promise<void>;
-  
-  // ✨ NEW Actions
-  handleFastSale: (product: any) => Promise<boolean>;
-  handleDetailedSale: (product: any, details: any) => Promise<boolean>;
+  recordSale: (product: any, saleDetails: any) => Promise<boolean>;
 }
 
 export function useProfileActions(
@@ -23,8 +20,6 @@ export function useProfileActions(
 ): UseProfileActionsReturn {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-
-  // ... (deleteProduct, updateProduct, logout, uploadProfileImage, updatePrivacySettings unchanged)
 
   const deleteProduct = async (productId: string, productImages: string[]) => {
     if (!userId) return false;
@@ -87,40 +82,32 @@ export function useProfileActions(
     await profileApi.updateUser(userId, { privacySettings: setting });
   };
 
-  // ✨ NEW: Fast Sale (No logs kept locally, just marked sold/deleted)
-  const handleFastSale = async (product: any) => {
+  // ✅ FIXED: Uses profileApi.recordSale which logs + deletes product
+  const recordSale = async (product: any, saleDetails: {
+      soldPrice: string;
+      buyerName?: string;
+      buyerPhone?: string;
+      imei?: string;
+      type: 'fast' | 'detailed';
+  }) => {
     if (!userId) return false;
     setLoading(true);
-    try {
-      // For fast sale, we assume sold price = listed price
-      await profileApi.logSale(userId, product, {
-        type: "fast",
-        soldPrice: product.price,
-      });
-      return true;
-    } catch (error) {
-      Alert.alert("Error", "Failed to mark as sold.");
-      return false;
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  // ✨ NEW: Detailed Sale
-  const handleDetailedSale = async (product: any, details: any) => {
-    if (!userId) return false;
-    setLoading(true);
     try {
-      await profileApi.logSale(userId, product, {
-        type: "detailed",
-        ...details
-      });
-      return true;
+        // Call the API method that handles both logging and deletion
+        const success = await profileApi.recordSale(product, saleDetails);
+        
+        if (!success) {
+            Alert.alert("Error", "Failed to record sale.");
+        }
+        
+        return success;
     } catch (error) {
-      Alert.alert("Error", "Failed to save sale log.");
-      return false;
+        console.error("Sale Record Error:", error);
+        Alert.alert("Error", "Failed to record sale.");
+        return false;
     } finally {
-      setLoading(false);
+        setLoading(false);
     }
   };
 
@@ -131,7 +118,6 @@ export function useProfileActions(
     logout,
     uploadProfileImage,
     updatePrivacySettings,
-    handleFastSale,
-    handleDetailedSale,
+    recordSale,
   };
 }

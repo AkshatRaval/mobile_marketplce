@@ -28,7 +28,7 @@ export function usePublicProfile(dealerId: string | string[] | undefined): UsePu
 
       const id = Array.isArray(dealerId) ? dealerId[0] : dealerId;
       
-      console.log(`📥 Fetching public profile for: ${id}`);
+      // console.log(`📥 Fetching public profile for: ${id}`);
       setLoading(true);
       setError(null);
 
@@ -41,7 +41,7 @@ export function usePublicProfile(dealerId: string | string[] | undefined): UsePu
           publicProfileApi.fetchDealerConnections(id) // <--- Fixed: Just pass the ID
         ]);
 
-        console.log("✅ Data loaded successfully");
+        // console.log("✅ Data loaded successfully");
         
         // 3. Update State
         setDealerData(profileData);

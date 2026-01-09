@@ -15,7 +15,7 @@ export const searchApi = {
     maxResults: number = 50
   ): Promise<Product[]> => {
     try {
-      console.log(`🔍 Searching for: "${searchText}"`);
+      // console.log(`🔍 Searching for: "${searchText}"`);
 
       // STEP 1: Fetch products from Supabase with Dealer Info
       const { data, error } = await supabase
@@ -36,7 +36,7 @@ export const searchApi = {
 
       if (error) throw error;
 
-      console.log(`📦 Fetched ${data.length} products from Supabase`);
+      // console.log(`📦 Fetched ${data.length} products from Supabase`);
 
       // STEP 2: Process search terms
       const searchTerms = searchText
@@ -77,7 +77,7 @@ export const searchApi = {
         }
       });
 
-      console.log(`✅ Found ${filteredData.length} matching products`);
+      // console.log(`✅ Found ${filteredData.length} matching products`);
       return filteredData;
 
     } catch (error: any) {

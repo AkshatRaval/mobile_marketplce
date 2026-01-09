@@ -1,8 +1,8 @@
 import { useAuth } from "@/src/context/AuthContext";
-import { publicProfileApi } from "@/src/services/api/publicProfileApi"; // ✅ Import the API
+import { useAcceptedConnections } from "@/src/hooks/useAcceptedConnections";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -21,34 +21,13 @@ export default function MyConnections() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  const [users, setUsers] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const { connections, loading, refetch } = useAcceptedConnections(user?.id);
+  const [refreshing, setRefreshing] = React.useState(false);
 
-  // ✅ NEW: Fetch logic uses the separate collection API
-  const fetchConnections = async () => {
-    if (!user?.id) return;
-
-    try {
-      if (!refreshing) setLoading(true);
-      const connectionsData = await publicProfileApi.fetchDealerConnections(user.id);
-      
-      setUsers(connectionsData || []);
-    } catch (error) {
-      console.error("Error fetching connections:", error);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchConnections();
-  }, [user?.id]);
-
-  const onRefresh = () => {
+  const onRefresh = async () => {
     setRefreshing(true);
-    fetchConnections();
+    await refetch();
+    setRefreshing(false);
   };
 
   const handleCall = (phone: string) => {
@@ -68,7 +47,7 @@ export default function MyConnections() {
           <Text className="text-2xl font-black text-gray-900 tracking-tight">My Circle</Text>
         </View>
         <View className="bg-indigo-50 px-3 py-1 rounded-full">
-          <Text className="text-indigo-700 font-bold text-xs">{users.length} Connected</Text>
+          <Text className="text-indigo-700 font-bold text-xs">{connections.length} Connected</Text>
         </View>
       </View>
 
@@ -77,7 +56,7 @@ export default function MyConnections() {
         <View className="flex-1 justify-center items-center">
           <ActivityIndicator size="large" color="#4F46E5" />
         </View>
-      ) : users.length === 0 ? (
+      ) : connections.length === 0 ? (
         <View className="flex-1 justify-center items-center opacity-50">
           <Ionicons name="people-outline" size={80} color="#9CA3AF" />
           <Text className="font-bold mt-4 text-gray-400 text-lg">No connections yet</Text>
@@ -87,7 +66,7 @@ export default function MyConnections() {
         </View>
       ) : (
         <FlatList
-          data={users}
+          data={connections}
           keyExtractor={(item) => item.uid}
           contentContainerStyle={{ padding: 20, paddingBottom: 100 }}
           showsVerticalScrollIndicator={false}
@@ -121,7 +100,7 @@ export default function MyConnections() {
               <View className="flex-row items-center gap-2">
                 {item.phoneNumber && (
                   <TouchableOpacity
-                    onPress={() => handleCall(item.phoneNumber)}
+                    onPress={() => handleCall(item.phoneNumber!)}
                     className="w-10 h-10 bg-green-50 rounded-full items-center justify-center border border-green-100"
                   >
                     <Ionicons name="call" size={18} color="#16A34A" />

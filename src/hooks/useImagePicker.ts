@@ -55,7 +55,7 @@ export function useImagePicker(maxImages: number = 4): UseImagePickerReturn {
    */
   const clearImages = () => {
     setImages([]);
-    console.log("🗑️ All images cleared");
+    // console.log("🗑️ All images cleared");
   };
 
   const canAddMore = images.length < maxImages;

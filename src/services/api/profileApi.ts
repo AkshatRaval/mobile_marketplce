@@ -2,9 +2,6 @@ import { supabase } from "@/src/supabaseConfig";
 import type { Product, UserProfile } from "@/src/types/index";
 
 export const profileApi = {
-  /**
-   * Get User Profile by ID (One-time fetch)
-   */
   getUserProfile: async (userId: string): Promise<UserProfile | null> => {
     try {
       const { data, error } = await supabase
@@ -19,11 +16,11 @@ export const profileApi = {
         uid: data.id,
         displayName: data.display_name || "",
         shopName: data.shop_name || "",
-        photoURL: data.photo_url || null, // Allow null for photos usually
+        photoURL: data.photo_url || null,
         email: data.email || "",
         phone: data.phone || "",
         city: data.city || "",
-        role: data.role || "dealer", // Default role fallback
+        role: data.role || "dealer",
         privacySettings: data.privacy_settings || "Everyone",
         onboardingStatus: data.onboarding_status || "submitted",
       } as UserProfile;
@@ -41,19 +38,21 @@ export const profileApi = {
       const { data, error } = await supabase
         .from("products")
         .select("*")
-        .eq("user_id", userId) // ✅ FIXED: matches DB column
+        .eq("user_id", userId)
+        .eq("status", "active")
         .order("created_at", { ascending: false });
 
       if (error) throw error;
 
       return data.map((doc: any) => ({
         id: doc.id,
-        userId: doc.user_id, // ✅ FIXED
+        userId: doc.user_id,
         name: doc.name,
         price: doc.price,
         description: doc.description,
         images: doc.images || [],
         image: doc.images?.[0] || null,
+        status: doc.status,
         createdAt: doc.created_at
           ? new Date(doc.created_at).getTime()
           : Date.now(),
@@ -77,10 +76,8 @@ export const profileApi = {
     let profileCache: any = null;
     let listingsCache: any[] = [];
 
-    // Helper to fetch latest data and update UI
     const refreshData = async () => {
       try {
-        // 1. Fetch Profile
         const { data: profile, error: profileError } = await supabase
           .from("profiles")
           .select("*")
@@ -89,16 +86,15 @@ export const profileApi = {
 
         if (profileError) throw profileError;
 
-        // 2. Fetch Listings (Products)
         const { data: products, error: productsError } = await supabase
           .from("products")
           .select("*")
-          .eq("user_id", userId) // ✅ FIXED: Changed owner_id to user_id
+          .eq("user_id", userId)
+          .eq("status", "active")
           .order("created_at", { ascending: false });
 
         if (productsError) throw productsError;
 
-        // Map snake_case to camelCase for frontend compatibility
         const formattedProfile = {
           uid: profile.id,
           displayName: profile.display_name,
@@ -118,8 +114,8 @@ export const profileApi = {
           price: p.price,
           description: p.description,
           images: p.images || [],
-          // Map back to format UI expects
-          userId: p.user_id, // ✅ FIXED: Changed owner_id to user_id
+          userId: p.user_id,
+          status: p.status,
           createdAt: p.created_at
             ? new Date(p.created_at).getTime()
             : Date.now(),
@@ -135,13 +131,10 @@ export const profileApi = {
       }
     };
 
-    // Initial Fetch
     refreshData();
 
-    // 3. Set up Real-time Listeners
     const channel = supabase
       .channel(`profile_watch_${userId}`)
-      // Listen for profile changes
       .on(
         "postgres_changes",
         {
@@ -151,35 +144,28 @@ export const profileApi = {
           filter: `id=eq.${userId}`,
         },
         () => {
-          console.log("🔔 Profile updated, refreshing...");
+          console.log("🔔 Profile updated");
           refreshData();
         }
       )
-      // Listen for product changes (listings)
       .on(
         "postgres_changes",
         {
           event: "*",
           schema: "public",
           table: "products",
-          filter: `user_id=eq.${userId}`, // ✅ FIXED: Changed owner_id to user_id
+          filter: `user_id=eq.${userId}`,
         },
         () => {
-          console.log("🔔 Listings updated, refreshing...");
-          refreshData();
         }
       )
       .subscribe();
 
-    // Return unsubscribe function
     return () => {
       supabase.removeChannel(channel);
     };
   },
 
-  /**
-   * Subscribe to a list of connection user IDs
-   */
   subscribeToConnections: (
     connectionIds: string[],
     onUpdate: (users: any[]) => void,
@@ -189,9 +175,7 @@ export const profileApi = {
       onUpdate([]);
       return null;
     }
-
-    const ids = connectionIds.slice(0, 10); // Limit to 10 for safety
-
+    const ids = connectionIds.slice(0, 10);
     const fetchConnections = async () => {
       try {
         const { data, error } = await supabase
@@ -200,7 +184,6 @@ export const profileApi = {
           .in("id", ids);
 
         if (error) throw error;
-
         const formattedUsers = data.map((u) => ({
           uid: u.id,
           displayName: u.display_name,
@@ -208,41 +191,33 @@ export const profileApi = {
           photoURL: u.photo_url,
           city: u.city,
         }));
-
         onUpdate(formattedUsers);
       } catch (err: any) {
         if (onError) onError(err);
       }
     };
-
     fetchConnections();
     return () => {};
   },
 
-  /**
-   * Delete a product listing
-   */
   deleteProduct: async (
     productId: string,
     userId: string,
     currentListings: any[]
   ): Promise<string[]> => {
     try {
-      // 1. Get image URLs first
       const { data: product } = await supabase
         .from("products")
         .select("images")
         .eq("id", productId)
         .single();
 
-      // 2. Delete the row
       const { error } = await supabase
         .from("products")
         .delete()
         .eq("id", productId);
 
       if (error) throw error;
-
       return product?.images || [];
     } catch (error: any) {
       console.error("❌ Error deleting product:", error);
@@ -250,23 +225,24 @@ export const profileApi = {
     }
   },
 
-  /**
-   * Update product details
-   */
   updateProduct: async (
     productId: string,
     userId: string,
-    updates: {
-      name: string;
-      price: string;
-      description: string;
-    },
+    updates: any,
     currentListings: any[]
   ): Promise<void> => {
     try {
+      const validUpdates: any = {};
+
+      if (updates.name !== undefined) validUpdates.name = updates.name;
+      if (updates.price !== undefined) validUpdates.price = updates.price;
+      if (updates.description !== undefined)
+        validUpdates.description = updates.description;
+      if (updates.status !== undefined) validUpdates.status = updates.status;
+
       const { error } = await supabase
         .from("products")
-        .update(updates)
+        .update(validUpdates)
         .eq("id", productId);
 
       if (error) throw error;
@@ -276,13 +252,8 @@ export const profileApi = {
     }
   },
 
-  /**
-   * Update User Profile (Photo, Privacy, etc.)
-   */
   updateUser: async (userId: string, data: any): Promise<void> => {
     try {
-      console.log(`👤 Updating user ${userId}...`);
-
       const dbUpdates: any = {};
       if (data.photoURL !== undefined) dbUpdates.photo_url = data.photoURL;
       if (data.privacySettings !== undefined)
@@ -297,16 +268,12 @@ export const profileApi = {
         .eq("id", userId);
 
       if (error) throw error;
-      console.log("✅ User updated successfully");
     } catch (error: any) {
       console.error("❌ Error updating user:", error);
       throw new Error("Failed to update user profile");
     }
   },
 
-  /**
-   * Sign out user
-   */
   signOut: async (): Promise<void> => {
     try {
       await supabase.auth.signOut();
@@ -316,47 +283,116 @@ export const profileApi = {
     }
   },
 
-  /**
-   * Log a Sale
-   */
-  logSale: async (
-    userId: string,
-    product: any,
-    saleDetails: {
-      type: "fast" | "detailed";
-      soldPrice: string;
-      buyerName?: string;
-      imei1?: string;
-      imei2?: string;
-      notes?: string;
-    }
-  ): Promise<void> => {
+  createSalesLog: async (logData: any): Promise<any> => {
     try {
-      // 1. Insert into Sales Table
-      const { error: saleError } = await supabase.from("sales").insert({
-        seller_id: userId,
-        product_name: product.name,
-        sold_price: Number(saleDetails.soldPrice),
-        buyer_name: saleDetails.buyerName,
-        imei1: saleDetails.imei1,
-        imei2: saleDetails.imei2,
-        notes: saleDetails.notes,
-      });
+      const { data, error } = await supabase
+        .from("sales_logs")
+        .insert([logData])
+        .select();
 
-      if (saleError) throw saleError;
+      if (error) throw error;
+      return data;
+    } catch (error: any) {
+      console.error("❌ Error creating sales log:", error);
+      throw error;
+    }
+  },
 
-      // 2. Delete from Products Table
-      const { error: deleteError } = await supabase
+  getSalesLogs: async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from("sales_logs")
+        .select("*")
+        .eq("user_id", userId)
+        .order("sold_at", { ascending: false });
+
+      if (error) throw error;
+      return data;
+    } catch (error: any) {
+      console.error("❌ Error fetching sales logs:", error);
+      return [];
+    }
+  },
+  // Replace the recordSale method in your profileApi.ts with this fixed version
+
+  recordSale: async (item: any, saleDetails: any): Promise<boolean> => {
+    try {
+      console.log("🔄 Starting sale record for product:", item.id);
+
+      // 1. Create Log Entry
+      const { data: logData, error: logError } = await supabase
+        .from("sales_logs")
+        .insert({
+          user_id: item.userId || item.user_id,
+          product_id: item.id,
+          product_name: item.name,
+          product_image:
+            item.images && item.images.length > 0 ? item.images[0] : null,
+          original_price: item.price,
+          sold_price: saleDetails.soldPrice,
+          sale_type: saleDetails.type,
+          buyer_name: saleDetails.buyerName || null,
+          buyer_phone: saleDetails.buyerPhone || null,
+          imei: saleDetails.imei || null,
+          sold_at: new Date().toISOString(),
+        })
+        .select();
+
+      if (logError) {
+        console.error("❌ Error creating sales log:", logError);
+        throw logError;
+      }
+
+      // console.log("✅ Sales log created:", logData);
+
+      const { data: deletedData, error: deleteError } = await supabase
         .from("products")
         .delete()
-        .eq("id", product.id);
+        .eq("id", item.id)
+        .select();
 
-      if (deleteError) throw deleteError;
+      if (deleteError) {
+        console.error("❌ Error deleting product:", deleteError);
+        throw deleteError;
+      }
 
-      console.log("✅ Sale logged successfully");
+      if (!deletedData || deletedData.length === 0) {
+        console.error("⚠️ No product was deleted - product might not exist");
+        throw new Error("Product not found or already deleted");
+      }
+
+      // console.log("✅ Product deleted successfully:", deletedData);
+      return true;
     } catch (error: any) {
-      console.error("❌ Error logging sale:", error);
-      throw new Error("Failed to log sale");
+      console.error("❌ Failed to record sale:", error.message || error);
+      return false;
+    }
+  },
+
+  updateSalesLog: async (logId: string, updates: any): Promise<void> => {
+    try {
+      const validUpdates: any = {};
+
+      if (updates.sold_price !== undefined)
+        validUpdates.sold_price = updates.sold_price;
+      if (updates.buyer_name !== undefined)
+        validUpdates.buyer_name = updates.buyer_name;
+      if (updates.buyer_phone !== undefined)
+        validUpdates.buyer_phone = updates.buyer_phone;
+      if (updates.imei !== undefined) validUpdates.imei = updates.imei;
+
+      // Add edited_at timestamp
+      validUpdates.edited_at = new Date().toISOString();
+
+      const { error } = await supabase
+        .from("sales_logs")
+        .update(validUpdates)
+        .eq("id", logId);
+
+      if (error) throw error;
+    } catch (error: any) {
+      console.error("❌ Error updating sales log:", error);
+      throw new Error("Failed to update sales log");
     }
   },
 };

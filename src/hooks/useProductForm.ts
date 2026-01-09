@@ -65,7 +65,7 @@ export function useProductForm(): UseProductFormReturn {
       // We no longer pass dealerName/city because the 'products' table 
       // is linked to 'profiles' via 'owner_id'.
       await productApi.createProduct({
-        userId: user.id, // Matches Supabase schema
+        userId: user.id, 
         name,
         price,
         description,

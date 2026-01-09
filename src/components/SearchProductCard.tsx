@@ -1,13 +1,11 @@
-// src/components/search/SearchProductCard.tsx
-// ✨ REDEMPTION UI: Premium, Immersive, Dark-Mode Aesthetic
-
 import { useAuth } from "@/src/context/AuthContext";
 import type { Product } from "@/src/types";
 import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   Dimensions,
+  FlatList,
   Image,
   Linking,
   Pressable,
@@ -17,166 +15,191 @@ import {
 } from "react-native";
 import ImageView from "react-native-image-viewing";
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
-// Tall, cinematic aspect ratio
-const CARD_HEIGHT = SCREEN_HEIGHT * 0.60;
-const CARD_WIDTH = SCREEN_WIDTH - 24;
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+
+// 📐 FIXED DIMENSIONS to prevent UI breaking
+export const CARD_HEIGHT = 140;
+const IMAGE_WIDTH = 130;
 
 interface SearchProductCardProps {
   item: Product;
-  router: any;
 }
 
 export const SearchProductCard: React.FC<SearchProductCardProps> = ({
   item,
-  router,
 }) => {
-  const [activeImageUri, setActiveImageUri] = useState(item.images?.[0]);
-  const [isViewerVisible, setIsViewerVisible] = useState(false);
-  const [currentViewerIndex, setCurrentViewerIndex] = useState(0);
-
-  const viewerImages = (item.images || []).map((uri) => ({ uri }));
+  const router = useRouter();
   const { user } = useAuth();
 
-  const openImageViewer = () => {
-    const index = item.images?.indexOf(activeImageUri || "") ?? 0;
-    setCurrentViewerIndex(index !== -1 ? index : 0);
-    setIsViewerVisible(true);
-  };
+  const [isViewerVisible, setIsViewerVisible] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
 
+  // 🖼️ Safe Image Array
+  const images =
+    item.images && item.images.length > 0 ? item.images : [item.image || ""];
+  const viewerImages = images.map((uri) => ({ uri }));
+
+  // 🔗 WhatsApp Action
   const openWhatsApp = () => {
-    const phoneNumber = item.dealerPhone || "919876543210";
-    const message = `Hi, I'm interested in the ${item.name} listed for ₹${item.price}.`;
+    const phoneNumber = item.dealerPhone;
+    if (!phoneNumber) {
+      alert("Dealer number not available.");
+      return;
+    }
+    const message = `Hi, I'm interested in: ${item.name} - ₹${item.price}`;
     const url = `whatsapp://send?text=${encodeURIComponent(message)}&phone=${phoneNumber}`;
     Linking.openURL(url).catch(() => alert("Could not open WhatsApp"));
   };
 
+  // 🔗 Profile Action
   const goToProfile = () => {
-    if (item.userId) {
-      const path = item.userId === user?.uid ? "/profile/" : `/profile/${item.userId}`;
-      router.push(path);
+    if (!item.userId) return;
+    const currentUserId = user?.id || (user as any)?.uid;
+
+    if (item.userId === currentUserId) {
+      router.push("/profile" as any);
+    } else {
+      router.push(`/profile/${item.userId}` as any);
     }
   };
 
+  // 👤 Dealer Data
+  const dealerName = item.dealerName || "Dealer";
+  // Default avatar if missing
+  const dealerAvatar =
+    item.dealerAvatar ||
+    item.dealerPhoto ||
+    `https://ui-avatars.com/api/?name=${dealerName}&background=random&color=fff&background=000`;
+
   return (
     <View
-      style={{
-        width: SCREEN_WIDTH,
-        height: CARD_HEIGHT,
-        alignItems: "center",
-        justifyContent: "center",
-        paddingVertical: 10,
-      }}
+      style={{ width: SCREEN_WIDTH, paddingHorizontal: 12, marginBottom: 12 }}
     >
-      {/* === CARD CONTAINER === */}
+      {/* 📦 CARD CONTAINER */}
       <View
-        style={{ width: CARD_WIDTH, height: "100%" }}
-        className="bg-black rounded-[30px] overflow-hidden relative shadow-2xl shadow-black"
+        style={{ height: CARD_HEIGHT, elevation: 2 }} // Added elevation for Android shadow
+        className="flex-row bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden"
       >
-        {/* 1. FULL BACKGROUND IMAGE */}
-        <Pressable onPress={openImageViewer} className="w-full h-full relative">
-          <Image
-            source={{ uri: activeImageUri }}
-            className="w-full h-full bg-gray-900"
-            resizeMode="cover"
-          />
-          
-          {/* Heavy Bottom Gradient for Text Readability */}
-          <LinearGradient
-            colors={["transparent", "rgba(0,0,0,0.6)", "rgba(0,0,0,0.95)", "black"]}
-            locations={[0, 0.5, 0.8, 1]}
-            style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: "55%" }}
+        {/* 👈 LEFT: IMAGE AREA */}
+        <View
+          style={{
+            width: IMAGE_WIDTH,
+            height: "100%",
+            backgroundColor: "#F3F4F6",
+          }}
+        >
+          <FlatList
+            data={images}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            keyExtractor={(_, i) => `img-${item.id}-${i}`}
+            renderItem={({ item: imgUri }) => (
+              <Pressable onPress={() => setIsViewerVisible(true)}>
+                {imgUri ? (
+                  <Image
+                    source={{ uri: imgUri }}
+                    style={{ width: IMAGE_WIDTH, height: CARD_HEIGHT }}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View
+                    style={{ width: IMAGE_WIDTH, height: CARD_HEIGHT }}
+                    className="items-center justify-center"
+                  >
+                    <Ionicons name="image" size={32} color="#D1D5DB" />
+                  </View>
+                )}
+              </Pressable>
+            )}
+            onMomentumScrollEnd={(e) => {
+              const index = Math.round(
+                e.nativeEvent.contentOffset.x / IMAGE_WIDTH
+              );
+              setActiveIndex(index);
+            }}
           />
 
-          {/* Top Gradient for Header */}
-          <LinearGradient
-            colors={["rgba(0,0,0,0.6)", "transparent"]}
-            style={{ position: "absolute", top: 0, left: 0, right: 0, height: 100 }}
-          />
-        </Pressable>
-
-        {/* 2. TOP HEADER: Dealer Left, Price Right (No Overlap) */}
-        <View className="absolute top-0 w-full flex-row justify-between items-start p-4 pt-5">
-          {/* Dealer Pill */}
-          <TouchableOpacity 
-            onPress={goToProfile}
-            className="flex-row items-center bg-black/40 px-2 py-1.5 rounded-full border border-white/10 backdrop-blur-md"
-          >
-            <Image
-              source={{
-                uri: item.dealerAvatar || `https://ui-avatars.com/api/?name=${item.dealerName}&background=random`,
-              }}
-              className="w-7 h-7 rounded-full border border-white/20"
-            />
-            <Text numberOfLines={1} className="text-white font-bold text-xs ml-2 mr-1 max-w-[100px]">
-              {item.dealerName}
-            </Text>
-          </TouchableOpacity>
-
-          {/* Price Badge (High Visibility) */}
-          <View className="bg-green-500 px-3 py-1.5 rounded-full shadow-lg">
-            <Text className="text-white font-black text-sm">
-              ₹ {parseInt(item.price).toLocaleString()}
-            </Text>
-          </View>
+          {/* Dots */}
+          {images.length > 1 && (
+            <View className="absolute bottom-2 w-full flex-row justify-center gap-1">
+              {images.map((_, i) => (
+                <View
+                  key={i}
+                  className={`w-1.5 h-1.5 rounded-full ${i === activeIndex ? "bg-white" : "bg-white/40"}`}
+                />
+              ))}
+            </View>
+          )}
         </View>
 
-        {/* 3. BOTTOM INFO & ACTIONS */}
-        <View className="absolute bottom-0 w-full px-5 pb-6">
-          {/* Gallery Indicator (Small) */}
-          <View className="flex-row items-center mb-2">
-            <View className="bg-white/20 px-2 py-0.5 rounded-md flex-row items-center">
-              <Ionicons name="images" size={10} color="white" />
-              <Text className="text-white text-[10px] ml-1 font-bold">
-                {item.images?.length || 1} Photos
+        {/* 👉 RIGHT: DETAILS AREA */}
+        <View className="flex-1 p-3 flex-col justify-between">
+          {/* Top Section */}
+          <View>
+            <View className="flex-row justify-between items-start gap-2">
+              <Text
+                numberOfLines={2}
+                className="text-gray-900 font-bold text-sm flex-1 leading-5"
+              >
+                {item.name}
               </Text>
+
+              {/* 3-Dots Menu */}
+              <TouchableOpacity
+                onPress={goToProfile}
+                className="p-1 -mr-2 -mt-2"
+              >
+                <Ionicons name="ellipsis-vertical" size={18} color="#9CA3AF" />
+              </TouchableOpacity>
             </View>
-            <Text className="text-gray-400 text-[10px] ml-2 uppercase font-bold tracking-wider">
-              {item.city}
+
+            <Text className="text-green-700 font-extrabold text-base mt-1">
+              ₹{Number(item.price).toLocaleString()}
             </Text>
           </View>
 
-          {/* Title (Large & Readable) */}
-          <Text 
-            numberOfLines={2} 
-            className="text-white font-black text-2xl leading-7 mb-1 shadow-black"
-          >
-            {item.name}
-          </Text>
+          {/* Middle: Dealer Row */}
+          <View className="flex-row items-center mt-1">
+            <Image
+              source={{ uri: dealerAvatar }}
+              className="w-4 h-4 rounded-full border border-gray-200"
+            />
+            <Text
+              numberOfLines={1}
+              className="text-xs text-gray-500 ml-1.5 font-medium flex-1"
+            >
+              {dealerName} • {item.city || "India"}
+            </Text>
+          </View>
 
-          {/* Description Snippet */}
-          <Text numberOfLines={1} className="text-gray-400 text-xs mb-5 font-medium">
-            {item.description}
-          </Text>
-
-          {/* Action Row */}
-          <View className="flex-row items-center gap-3">
-             {/* Main Action: WhatsApp */}
+          <View className="flex-row gap-3 mt-auto pt-3 border-t border-gray-50">
+            {/* Primary: Chat (Emerald Green) */}
             <TouchableOpacity
               onPress={openWhatsApp}
-              className="flex-1 bg-white h-12 rounded-2xl flex-row items-center justify-center active:bg-gray-200"
+              className="flex-1 bg-black h-10 rounded-xl flex-row items-center justify-center shadow-sm active:bg-emerald-700"
             >
-              <Ionicons name="logo-whatsapp" size={20} color="black" />
-              <Text className="text-black font-extrabold text-base ml-2">
-                Chat Now
+              <Ionicons name="chatbubble-ellipses" size={18} color="white" />
+              <Text className="text-white font-bold text-sm ml-2 tracking-wide">
+                Chat
               </Text>
             </TouchableOpacity>
 
-            {/* Secondary Action: Profile/More */}
+            {/* Secondary: Profile (Soft Gray Square) */}
             <TouchableOpacity
               onPress={goToProfile}
-              className="h-12 w-12 bg-white/10 rounded-2xl items-center justify-center border border-white/10 active:bg-white/20"
+              className="w-10 h-10 bg-gray-100 rounded-xl items-center justify-center active:bg-gray-200"
             >
-              <Ionicons name="arrow-forward" size={24} color="white" />
+              <Ionicons name="person-outline" size={20} color="#374151" />
             </TouchableOpacity>
           </View>
         </View>
       </View>
 
-      {/* Image Viewer */}
+      {/* 🖼️ Full Screen Viewer */}
       <ImageView
         images={viewerImages}
-        imageIndex={currentViewerIndex}
+        imageIndex={activeIndex}
         visible={isViewerVisible}
         onRequestClose={() => setIsViewerVisible(false)}
       />
@@ -184,4 +207,4 @@ export const SearchProductCard: React.FC<SearchProductCardProps> = ({
   );
 };
 
-export { CARD_HEIGHT, CARD_WIDTH };
+export const CARD_WIDTH = SCREEN_WIDTH;

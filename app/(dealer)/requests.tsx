@@ -1,9 +1,7 @@
-// app/requests.tsx
-// ✨ REFACTORED - UI ONLY ✨
-// BEFORE: 310 lines with mixed logic
-// AFTER: 200 lines - clean UI only!
-
 import { useAuth } from "@/src/context/AuthContext";
+import { useMarketRequests } from "@/src/hooks/useMarketRequests";
+import { useRequestForm } from "@/src/hooks/useRequestForm";
+import { requestApi } from "@/src/services/api/requestApi";
 import type { MarketRequest } from "@/src/types";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useState } from "react";
@@ -14,6 +12,7 @@ import {
   KeyboardAvoidingView,
   Modal,
   Platform,
+  RefreshControl, // ✅ Import RefreshControl
   StatusBar,
   Text,
   TextInput,
@@ -22,18 +21,12 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-// ✅ Import hooks - all logic is here now!
-import { useMarketRequests } from "@/src/hooks/useMarketRequests";
-import { useRequestForm } from "@/src/hooks/useRequestForm";
-import { requestApi } from "@/src/services/api/requestApi";
-
 export default function RequestsPage() {
   const { user } = useAuth();
 
-  // ✅ All data fetching logic in hook
-  const { requests, loading } = useMarketRequests();
+  // ✅ Get 'refetch' from your hook
+  const { requests, loading, refetch } = useMarketRequests();
 
-  // ✅ All form logic in hook
   const {
     title,
     setTitle,
@@ -47,11 +40,17 @@ export default function RequestsPage() {
 
   // Local UI state
   const [isModalVisible, setModalVisible] = useState(false);
+  const [refreshing, setRefreshing] = useState(false); // ✅ Refreshing state
 
-  /**
-   * Handle menu action (delete)
-   * SIMPLIFIED - just calls requestApi
-   */
+  // ✅ Pull to Refresh Handler
+  const onRefresh = async () => {
+    setRefreshing(true);
+    if (refetch) {
+      await refetch(); // Reload data
+    }
+    setRefreshing(false);
+  };
+
   const handleMenuAction = (item: MarketRequest) => {
     if (user?.id !== item.dealerId) return;
 
@@ -62,6 +61,7 @@ export default function RequestsPage() {
         onPress: async () => {
           try {
             await requestApi.deleteRequest(item.id);
+            if (refetch) refetch(); // Refresh after delete
           } catch (e) {
             Alert.alert("Error", "Could not delete request.");
           }
@@ -71,40 +71,38 @@ export default function RequestsPage() {
     ]);
   };
 
-  /**
-   * Handle post request
-   * SIMPLIFIED - just calls hook
-   */
   const handlePostRequest = async () => {
     const success = await submitRequest();
     if (success) {
       setModalVisible(false);
+      if (refetch) refetch(); // Refresh after post
     }
   };
 
-  /**
-   * Render request card
-   */
   const renderItem = ({ item }: { item: MarketRequest }) => {
     const isOwner = user?.id === item.dealerId;
     const isFulfilled = item.status === "fulfilled";
 
     return (
       <View
-        className={`bg-white rounded-2xl p-5 mb-4 border border-gray-100 shadow-sm relative overflow-hidden ${isFulfilled ? "opacity-60" : ""}`}
+        className={`bg-white rounded-2xl p-5 mb-4 border border-gray-100 shadow-sm relative overflow-hidden ${
+          isFulfilled ? "opacity-60" : ""
+        }`}
       >
-        {/* Tag */}
         <View
-          className={`absolute top-0 right-0 px-3 py-1 rounded-bl-xl z-10 ${isFulfilled ? "bg-green-100" : "bg-red-50"}`}
+          className={`absolute top-0 right-0 px-3 py-1 rounded-bl-xl z-10 ${
+            isFulfilled ? "bg-green-100" : "bg-red-50"
+          }`}
         >
           <Text
-            className={`text-[10px] font-bold uppercase ${isFulfilled ? "text-green-700" : "text-red-500"}`}
+            className={`text-[10px] font-bold uppercase ${
+              isFulfilled ? "text-green-700" : "text-red-500"
+            }`}
           >
             {isFulfilled ? "Fulfilled" : "Wanted"}
           </Text>
         </View>
 
-        {/* Header Row */}
         <View className="flex-row items-start mb-3 justify-between">
           <View className="flex-row items-start flex-1">
             <View className="w-12 h-12 bg-indigo-50 rounded-xl items-center justify-center mr-4">
@@ -117,7 +115,9 @@ export default function RequestsPage() {
 
             <View className="flex-1 pr-8">
               <Text
-                className={`text-lg font-bold leading-6 ${isFulfilled ? "line-through text-gray-400" : "text-gray-900"}`}
+                className={`text-lg font-bold leading-6 ${
+                  isFulfilled ? "line-through text-gray-400" : "text-gray-900"
+                }`}
               >
                 {item.title}
               </Text>
@@ -140,7 +140,6 @@ export default function RequestsPage() {
           )}
         </View>
 
-        {/* Info */}
         <View className="flex-row justify-between items-center bg-gray-50 p-3 rounded-lg mb-3">
           <View>
             <Text className="text-gray-400 text-[10px] font-bold uppercase">
@@ -161,7 +160,6 @@ export default function RequestsPage() {
           </View>
         </View>
 
-        {/* Action Button */}
         {!isOwner && !isFulfilled && (
           <TouchableOpacity
             onPress={() =>
@@ -186,9 +184,18 @@ export default function RequestsPage() {
     );
   };
 
-  // ========================================
-  // UI ONLY FROM HERE - NO LOGIC!
-  // ========================================
+  // ✅ New Empty State Component
+  const EmptyState = () => (
+    <View className="flex-1 items-center justify-center px-10 py-20 opacity-50">
+      <Ionicons name="clipboard-outline" size={64} color="#9CA3AF" />
+      <Text className="text-gray-500 font-medium mt-4 text-center">
+        No active requests found.
+      </Text>
+      <Text className="text-gray-400 text-xs text-center mt-2">
+        Pull down to refresh
+      </Text>
+    </View>
+  );
 
   return (
     <SafeAreaView className="flex-1 bg-gray-50">
@@ -212,29 +219,26 @@ export default function RequestsPage() {
         </TouchableOpacity>
       </View>
 
-      {/* CONTENT */}
-      {loading ? (
+      {/* CONTENT - Optimized List Structure */}
+      {loading && !refreshing ? (
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator color="#4F46E5" />
-        </View>
-      ) : requests.length === 0 ? (
-        <View className="flex-1 items-center justify-center px-10 opacity-50">
-          <Ionicons name="clipboard-outline" size={64} color="#9CA3AF" />
-          <Text className="text-gray-500 font-medium mt-4 text-center">
-            No active requests.
-          </Text>
         </View>
       ) : (
         <FlatList
           data={requests}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
-          contentContainerStyle={{ padding: 20, paddingBottom: 100 }}
+          contentContainerStyle={{ padding: 20, paddingBottom: 100, flexGrow: 1 }}
           showsVerticalScrollIndicator={false}
+          ListEmptyComponent={EmptyState} // ✅ Show this when empty
+          refreshControl={ // ✅ Enable Pull to Refresh
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
         />
       )}
 
-      {/* MODAL */}
+      {/* MODAL (Unchanged) */}
       <Modal
         animationType="slide"
         transparent={true}

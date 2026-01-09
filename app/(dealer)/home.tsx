@@ -1,13 +1,13 @@
-// app/(dealer)/home.tsx (or wherever your Home file is)
-
 import { ProductCard } from "@/src/components/ProductCard";
 import { useAuth } from "@/src/context/AuthContext";
+import { useTabRefresh } from "@/src/context/TabelRefreshContext";
+import { useAcceptedConnections } from "@/src/hooks/useAcceptedConnections";
 import { useConnectionRequests } from "@/src/hooks/useConnectionRequests";
 import { useProducts } from "@/src/hooks/useProducts";
 import type { Product } from "@/src/types";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Dimensions,
   FlatList,
@@ -31,7 +31,6 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 
-// Suppress Reanimated warnings
 configureReanimatedLogger({
   level: ReanimatedLogLevel.warn,
   strict: false,
@@ -42,15 +41,24 @@ LogBox.ignoreLogs([
   "[Reanimated] Writing to `value` during component render",
 ]);
 
+type TabType = "all" | "connections";
+
 export default function DealerHome() {
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { subscribeToRefresh } = useTabRefresh();
 
-  // ✅ Product Fetching
+  // Active Tab State
+  const [activeTab, setActiveTab] = useState<TabType>("all");
+
+  // Product Fetching
   const { products, loading: productsLoading, refetch } = useProducts();
 
-  // ✅ Connection Requests (FIXED: No longer needs userDoc args)
+  // Accepted Connections
+  const { connectionIds, loading: connectionsLoading } = useAcceptedConnections(user?.id);
+
+  // Connection Requests
   const {
     requestUsers,
     loading: requestsLoading,
@@ -66,6 +74,16 @@ export default function DealerHome() {
     index: 0,
   });
 
+  // Subscribe to double-tap refresh events
+  useEffect(() => {
+    const unsubscribe = subscribeToRefresh('home', () => {
+      console.log('🔄 Refreshing Home feed...');
+      refetch();
+    });
+
+    return unsubscribe;
+  }, [subscribeToRefresh, refetch]);
+
   // Layout calculations
   const HEADER_HEIGHT = 60;
   const TAB_BAR_HEIGHT = 60;
@@ -76,10 +94,31 @@ export default function DealerHome() {
     insets.top -
     insets.bottom;
 
+  // Sorted Products (All)
+  const sortedProducts = useMemo(() => {
+    if (!products) return [];
+    return [...products].sort((a, b) => {
+      const dateA = new Date(a.createdAt || 0).getTime();
+      const dateB = new Date(b.createdAt || 0).getTime();
+      return dateB - dateA;
+    });
+  }, [products]);
+
+  // Filtered Products (Connections Only)
+  const connectionsProducts = useMemo(() => {
+    if (!connectionIds.length) return [];
+    return sortedProducts.filter((product) =>
+      connectionIds.includes(product.userId)
+    );
+  }, [sortedProducts, connectionIds]);
+
+  // Display Products based on active tab
+  const displayProducts = activeTab === "all" ? sortedProducts : connectionsProducts;
+
   const handleProfilePress = useCallback(
     (uid: string) => {
       if (!uid) return;
-      router.push(`/profile/${uid}`); // Ensure this route matches your file structure
+      router.push(`/profile/${uid}`);
     },
     [router]
   );
@@ -106,24 +145,57 @@ export default function DealerHome() {
     [REEL_HEIGHT, handleProfilePress, handleImagePress]
   );
 
+  const isLoading = productsLoading || connectionsLoading;
+
   return (
     <SafeAreaView className="flex-1 bg-white" edges={["top"]}>
       <StatusBar barStyle="dark-content" />
 
-      {/* HEADER */}
+      {/* HEADER WITH TABS & NOTIFICATION */}
       <View
         className="px-4 bg-white border-b border-gray-100 flex-row items-center justify-between"
         style={{ height: HEADER_HEIGHT }}
       >
-        <Text className="text-xl font-black text-black italic">FEED</Text>
+        {/* TABS */}
+        <View className="flex-row flex-1 gap-1">
+          <TouchableOpacity
+            onPress={() => setActiveTab("all")}
+            className={`px-5 py-2.5 rounded-full ${
+              activeTab === "all" ? "bg-black" : "bg-gray-50"
+            }`}
+          >
+            <Text
+              className={`font-bold text-sm ${
+                activeTab === "all" ? "text-white" : "text-gray-600"
+              }`}
+            >
+              All Feed
+            </Text>
+          </TouchableOpacity>
 
+          <TouchableOpacity
+            onPress={() => setActiveTab("connections")}
+            className={`px-5 py-2.5 rounded-full ${
+              activeTab === "connections" ? "bg-black" : "bg-gray-50"
+            }`}
+          >
+            <Text
+              className={`font-bold text-sm ${
+                activeTab === "connections" ? "text-white" : "text-gray-600"
+              }`}
+            >
+              Connections
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* NOTIFICATION BUTTON */}
         <TouchableOpacity
           onPress={() => setIsNotifVisible(true)}
-          className="bg-gray-100 h-10 w-10 rounded-full items-center justify-center relative"
+          className="bg-gray-100 h-10 w-10 rounded-full items-center justify-center relative ml-2"
         >
           <Ionicons name="notifications-outline" size={22} color="black" />
-          
-          {/* FIXED: Uses requestUsers.length directly */}
+
           {requestUsers.length > 0 && (
             <View className="absolute top-2 right-2 w-2.5 h-2.5 bg-red-500 rounded-full border border-white" />
           )}
@@ -131,11 +203,13 @@ export default function DealerHome() {
       </View>
 
       {/* FEED */}
-      {products.length === 0 && !productsLoading ? (
+      {displayProducts.length === 0 && !isLoading ? (
         <View className="flex-1 justify-center items-center opacity-50 px-10">
           <Ionicons name="cube-outline" size={64} color="gray" />
           <Text className="font-bold mt-4 text-center text-gray-500">
-            No listings found.
+            {activeTab === "connections"
+              ? "No posts from your connections yet."
+              : "No listings found."}
           </Text>
           <TouchableOpacity
             onPress={refetch}
@@ -146,7 +220,7 @@ export default function DealerHome() {
         </View>
       ) : (
         <FlatList
-          data={products}
+          data={displayProducts}
           keyExtractor={(item) => item.id}
           pagingEnabled
           snapToInterval={REEL_HEIGHT}
@@ -158,8 +232,9 @@ export default function DealerHome() {
           windowSize={3}
           renderItem={renderProductItem}
           refreshControl={
-            <RefreshControl refreshing={productsLoading} onRefresh={refetch} />
+            <RefreshControl refreshing={isLoading} onRefresh={refetch} />
           }
+          extraData={activeTab}
         />
       )}
 
@@ -216,7 +291,6 @@ export default function DealerHome() {
                 data={requestUsers}
                 keyExtractor={(item) => item.uid}
                 contentContainerStyle={{ padding: 24 }}
-                // FIXED: Removed refreshControl because the hook is real-time
                 renderItem={({ item }) => (
                   <View className="flex-row items-center mb-6">
                     <Image

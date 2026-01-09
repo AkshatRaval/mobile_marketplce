@@ -27,7 +27,7 @@ export function useConnectionStatus(
     const id = Array.isArray(dealerId) ? dealerId[0] : dealerId;
     setLoading(true);
 
-    console.log(`🔌 Setting up connection status subscription for ${id}`);
+    // console.log(`🔌 Setting up connection status subscription for ${id}`);
 
     const unsubscribe = publicProfileApi.subscribeToConnectionStatus(
       currentUserId,

@@ -49,9 +49,6 @@ export function useSearch(): UseSearchReturn {
     }
   };
 
-  /**
-   * Clear search (reset to initial state)
-   */
   const clearSearch = () => {
     setSearchText("");
     setResults([]);

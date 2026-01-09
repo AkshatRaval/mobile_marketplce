@@ -13,6 +13,7 @@
     },
     "android": {
       "softwareKeyboardLayoutMode": "pan",
+      "buildType": "apk",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -20,7 +21,8 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.anonymous.mobilemarketplace"
     },
     "web": {
       "bundler": "metro",
@@ -45,6 +47,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "cb0a7daf-f84b-427a-9ab0-eb41a95cc8fe"
+      }
     }
   }
 }

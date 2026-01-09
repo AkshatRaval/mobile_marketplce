@@ -31,6 +31,7 @@ export const userApi = {
         displayName: data.display_name || "Unknown",
         email: data.email,
         photoURL: data.photo_url,
+        shopName: data.shop_name,
         phone: data.phone,
         phoneNumber: data.phone,
         mobile: data.phone,
@@ -104,6 +105,7 @@ export const userApi = {
 
       const users: UserProfile[] = data.map((d) => ({
         uid: d.id,
+        shopName: d.shop_name,
         displayName: d.display_name || "Unknown",
         email: d.email,
         photoURL: d.photo_url,

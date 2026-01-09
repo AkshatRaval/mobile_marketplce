@@ -5,18 +5,22 @@ import {
   ThemeProvider,
 } from "@react-navigation/native";
 import { Stack } from "expo-router";
-import { useColorScheme } from "react-native";
+import { LogBox, useColorScheme } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import "./global.css";
 
+
 export default function RootLayout() {
   const colorScheme = useColorScheme();
-
+  LogBox.ignoreLogs([
+    "setLayoutAnimationEnabledExperimental", // Ignore this specific warning
+  ]);
   return (
     <SafeAreaProvider>
       <AuthProvider>
         <ThemeProvider
-          value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+          value={colorScheme === "dark" ? DarkTheme : DefaultTheme}
+        >
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="index" />
             <Stack.Screen name="(auth)" />

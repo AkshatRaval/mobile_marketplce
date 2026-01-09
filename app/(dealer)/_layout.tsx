@@ -1,15 +1,21 @@
 import { useAuth } from "@/src/context/AuthContext";
+import { TabRefreshProvider, useTabRefresh } from "@/src/context/TabelRefreshContext";
 import { Ionicons } from "@expo/vector-icons";
 import { Redirect, Tabs } from "expo-router";
-import React from "react";
-import { ActivityIndicator, View } from "react-native";
+import React, { useRef } from "react";
+import { ActivityIndicator, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const ICON_SIZE = 26;
+const DOUBLE_TAP_DELAY = 300; // milliseconds
 
-export default function DealerLayout() {
+function TabsContent() {
   const { user, userDoc, loading } = useAuth();
   const insets = useSafeAreaInsets();
+  const { triggerRefresh } = useTabRefresh();
+  
+  // Track last tap time for each tab
+  const lastTapRef = useRef<{ [key: string]: number }>({});
 
   if (loading) {
     return (
@@ -19,20 +25,43 @@ export default function DealerLayout() {
     );
   }
 
-  // Basic Auth Checks
   if (!user) return <Redirect href="/login" />;
-  
-  // Role Check
-  // Note: If userDoc is missing, this redirects to home. 
-  // Ensure your AuthContext fetches the profile correctly.
   if (userDoc?.role !== "dealer") return <Redirect href="/" />;
-
-  // ✅ FIXED PATHS (Assuming files are at app/suspended.tsx)
   if (userDoc?.onboarding_status === "suspended")
     return <Redirect href="/suspended" />;
-    
   if (userDoc?.onboarding_status !== "approved")
     return <Redirect href="/onboarding" />;
+
+  // Custom Tab Button with Double-Tap Detection
+  const CustomTabBarButton = ({
+    children,
+    onPress,
+    routeName,
+    ...props
+  }: any) => {
+    const handlePress = () => {
+      const now = Date.now();
+      const lastTap = lastTapRef.current[routeName] || 0;
+      const timeSinceLastTap = now - lastTap;
+
+      if (timeSinceLastTap < DOUBLE_TAP_DELAY) {
+        // Double-tap detected - trigger refresh
+        console.log(`🔄 Double-tap detected on ${routeName}`);
+        triggerRefresh(routeName);
+      } else {
+        // Single tap - normal navigation
+        onPress?.();
+      }
+
+      lastTapRef.current[routeName] = now;
+    };
+
+    return (
+      <TouchableOpacity {...props} onPress={handlePress} activeOpacity={0.7}>
+        {children}
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <Tabs
@@ -61,6 +90,9 @@ export default function DealerLayout() {
               color={color}
             />
           ),
+          tabBarButton: (props) => (
+            <CustomTabBarButton {...props} routeName="home" />
+          ),
         }}
       />
 
@@ -74,6 +106,9 @@ export default function DealerLayout() {
               color={color}
             />
           ),
+          tabBarButton: (props) => (
+            <CustomTabBarButton {...props} routeName="search" />
+          ),
         }}
       />
 
@@ -82,6 +117,9 @@ export default function DealerLayout() {
         options={{
           tabBarIcon: ({ color }) => (
             <Ionicons name="add-circle-outline" size={30} color={color} />
+          ),
+          tabBarButton: (props) => (
+            <CustomTabBarButton {...props} routeName="upload-post" />
           ),
         }}
       />
@@ -96,6 +134,9 @@ export default function DealerLayout() {
               color={color}
             />
           ),
+          tabBarButton: (props) => (
+            <CustomTabBarButton {...props} routeName="requests" />
+          ),
         }}
       />
 
@@ -109,6 +150,9 @@ export default function DealerLayout() {
               color={color}
             />
           ),
+          tabBarButton: (props) => (
+            <CustomTabBarButton {...props} routeName="profile/index" />
+          ),
         }}
       />
 
@@ -117,5 +161,13 @@ export default function DealerLayout() {
       <Tabs.Screen name="profile/[id]" options={{ href: null }} />
       <Tabs.Screen name="services/connections" options={{ href: null }} />
     </Tabs>
+  );
+}
+
+export default function DealerLayout() {
+  return (
+    <TabRefreshProvider>
+      <TabsContent />
+    </TabRefreshProvider>
   );
 }

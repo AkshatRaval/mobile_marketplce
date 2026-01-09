@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React from "react";
+import React, { useEffect } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -18,7 +18,6 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 
-// ✅ Import hooks - all logic is here now!
 import { useImagePicker } from "@/src/hooks/useImagePicker";
 import { useProductForm } from "@/src/hooks/useProductForm";
 
@@ -26,10 +25,9 @@ export default function UploadPost() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  // ✅ All image logic in this hook
-  const { images, addImage, removeImage, canAddMore } = useImagePicker(4);
+  const { images, addImage, removeImage, clearImages, canAddMore } =
+    useImagePicker(4);
 
-  // ✅ All form logic in this hook
   const {
     name,
     setName,
@@ -39,13 +37,33 @@ export default function UploadPost() {
     setDescription,
     uploading,
     submitProduct,
+    reset,
   } = useProductForm();
 
-  // ✅ Simple handler - just calls the hook
+  useEffect(() => {
+    return () => {
+      reset?.();
+      clearImages?.();
+    };
+  }, []);
+
   const handlePost = async () => {
     const success = await submitProduct(images);
     if (success) {
-      router.back();
+      setName("");
+      setPrice("");
+      setDescription("");
+
+      if (clearImages) {
+        clearImages();
+      }
+
+      if (reset) {
+        reset();
+      }
+
+      // Redirect to home tab
+      router.replace("/");
     }
   };
 
@@ -146,9 +164,7 @@ export default function UploadPost() {
             {uploading ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text className="text-white font-bold text-lg">
-                Post Listing
-              </Text>
+              <Text className="text-white font-bold text-lg">Post Listing</Text>
             )}
           </TouchableOpacity>
         </View>
