@@ -9,7 +9,13 @@
       "distribution": "internal"
     },
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EAS_BUILD_NPM_INSTALL_COMMAND": "npm install --legacy-peer-deps"
+      }
     },
     "production": {
       "autoIncrement": true
