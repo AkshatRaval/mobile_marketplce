@@ -90,7 +90,7 @@ export function useProducts(): UseProductsReturn {
         "postgres_changes",
         { event: "*", schema: "public", table: "products" },
         (payload) => {
-          console.log("⚡ Product feed updated:", payload.eventType);
+          // console.log("⚡ Product feed updated:", payload.eventType);
           fetchProducts(); // Re-fetch to get fresh data + joins
         }
       )

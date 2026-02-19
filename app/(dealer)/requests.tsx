@@ -4,15 +4,15 @@ import { useRequestForm } from "@/src/hooks/useRequestForm";
 import { requestApi } from "@/src/services/api/requestApi";
 import type { MarketRequest } from "@/src/types";
 import { Ionicons } from "@expo/vector-icons";
+import { FlashList } from "@shopify/flash-list";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  FlatList,
   KeyboardAvoidingView,
   Modal,
   Platform,
-  RefreshControl, // ✅ Import RefreshControl
+  RefreshControl,
   StatusBar,
   Text,
   TextInput,
@@ -85,19 +85,16 @@ export default function RequestsPage() {
 
     return (
       <View
-        className={`bg-white rounded-2xl p-5 mb-4 border border-gray-100 shadow-sm relative overflow-hidden ${
-          isFulfilled ? "opacity-60" : ""
-        }`}
+        className={`bg-white rounded-2xl p-5 mb-4 border border-gray-100 shadow-sm relative overflow-hidden ${isFulfilled ? "opacity-60" : ""
+          }`}
       >
         <View
-          className={`absolute top-0 right-0 px-3 py-1 rounded-bl-xl z-10 ${
-            isFulfilled ? "bg-green-100" : "bg-red-50"
-          }`}
+          className={`absolute top-0 right-0 px-3 py-1 rounded-bl-xl z-10 ${isFulfilled ? "bg-green-100" : "bg-red-50"
+            }`}
         >
           <Text
-            className={`text-[10px] font-bold uppercase ${
-              isFulfilled ? "text-green-700" : "text-red-500"
-            }`}
+            className={`text-[10px] font-bold uppercase ${isFulfilled ? "text-green-700" : "text-red-500"
+              }`}
           >
             {isFulfilled ? "Fulfilled" : "Wanted"}
           </Text>
@@ -115,9 +112,8 @@ export default function RequestsPage() {
 
             <View className="flex-1 pr-8">
               <Text
-                className={`text-lg font-bold leading-6 ${
-                  isFulfilled ? "line-through text-gray-400" : "text-gray-900"
-                }`}
+                className={`text-lg font-bold leading-6 ${isFulfilled ? "line-through text-gray-400" : "text-gray-900"
+                  }`}
               >
                 {item.title}
               </Text>
@@ -225,14 +221,14 @@ export default function RequestsPage() {
           <ActivityIndicator color="#4F46E5" />
         </View>
       ) : (
-        <FlatList
+        <FlashList
           data={requests}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
-          contentContainerStyle={{ padding: 20, paddingBottom: 100, flexGrow: 1 }}
+          contentContainerStyle={{ padding: 20, paddingBottom: 100 }}
           showsVerticalScrollIndicator={false}
-          ListEmptyComponent={EmptyState} // ✅ Show this when empty
-          refreshControl={ // ✅ Enable Pull to Refresh
+          ListEmptyComponent={EmptyState}
+          refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
         />

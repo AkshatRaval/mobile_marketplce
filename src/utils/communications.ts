@@ -13,9 +13,12 @@ export const communications = {
       return;
     }
 
-    console.log(`📱 Opening WhatsApp for: ${phoneNumber}`);
+    // Sanitize phone number: remove spaces, dashes, parentheses
+    const cleanPhone = phoneNumber.replace(/[\s\-\(\)]/g, "");
 
-    Linking.openURL(`whatsapp://send?phone=${phoneNumber}`).catch(() =>
+    console.log(`📱 Opening WhatsApp for: ${cleanPhone}`);
+
+    Linking.openURL(`whatsapp://send?phone=${cleanPhone}`).catch(() =>
       Alert.alert("Error", "Could not open WhatsApp")
     );
   },
@@ -33,8 +36,11 @@ export const communications = {
       return;
     }
 
+    // Sanitize phone number
+    const cleanPhone = phoneNumber.replace(/[\s\-\(\)]/g, "");
+
     const text = `Hi, I am interested in the ${productName} listed for ₹${productPrice}`;
-    const url = `whatsapp://send?phone=${phoneNumber}&text=${encodeURIComponent(text)}`;
+    const url = `whatsapp://send?phone=${cleanPhone}&text=${encodeURIComponent(text)}`;
 
     console.log(`📱 Opening WhatsApp for product: ${productName}`);
 

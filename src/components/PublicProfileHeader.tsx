@@ -17,7 +17,7 @@ interface PublicProfileHeaderProps {
   dealerData: any;
   connections: any[];
   inventoryCount: number;
-  requestStatus: ConnectionStatus; // <--- Updated Type
+  requestStatus: ConnectionStatus;
   processing: boolean;
   onWhatsAppPress: () => void;
   onConnectPress: () => void;

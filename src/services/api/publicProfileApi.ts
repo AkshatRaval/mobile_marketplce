@@ -3,6 +3,41 @@ import { supabase } from "@/src/supabaseConfig";
 import { Product } from "@/src/types";
 
 export const publicProfileApi = {
+  // Manual status check (for force refresh)
+  checkConnectionStatus: async (
+    currentUserId: string,
+    dealerId: string
+  ): Promise<"none" | "pending" | "connected" | "received"> => {
+    try {
+      const { data, error } = await supabase
+        .from("connections")
+        .select("*")
+        .or(
+          `and(sender_id.eq.${currentUserId},receiver_id.eq.${dealerId}),and(sender_id.eq.${dealerId},receiver_id.eq.${currentUserId})`
+        )
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (!data) return "none";
+
+      if (data.status === "accepted") {
+        return "connected";
+      } else if (data.status === "pending") {
+        if (data.sender_id === currentUserId) {
+          return "pending";
+        } else {
+          return "received";
+        }
+      }
+      
+      return "none";
+    } catch (error) {
+      console.error("❌ Error checking status:", error);
+      return "none";
+    }
+  },
+
   // 1. Subscribe to Status (Real-time listener on 'connections' table)
   subscribeToConnectionStatus: (
     currentUserId: string,
@@ -12,8 +47,6 @@ export const publicProfileApi = {
     ) => void,
     onError?: (error: Error) => void
   ) => {
-    // console.log(`👂 Subscribing to connection status with ${dealerId}`);
-
     // Helper to fetch current status
     const checkStatus = async () => {
       try {
@@ -23,7 +56,7 @@ export const publicProfileApi = {
           .or(
             `and(sender_id.eq.${currentUserId},receiver_id.eq.${dealerId}),and(sender_id.eq.${dealerId},receiver_id.eq.${currentUserId})`
           )
-          .maybeSingle(); // Returns null if no row found
+          .maybeSingle();
 
         if (error) throw error;
 
@@ -36,9 +69,9 @@ export const publicProfileApi = {
           onStatusChange("connected");
         } else if (data.status === "pending") {
           if (data.sender_id === currentUserId) {
-            onStatusChange("pending"); // I sent it
+            onStatusChange("pending");
           } else {
-            onStatusChange("received"); // They sent it
+            onStatusChange("received");
           }
         } else {
           onStatusChange("none");
@@ -52,7 +85,7 @@ export const publicProfileApi = {
     // Initial check
     checkStatus();
 
-    // Real-time Listener
+    // Real-time Listener - Listen to BOTH sender and receiver changes
     const channel = supabase
       .channel(`connection_status_${currentUserId}_${dealerId}`)
       .on(
@@ -61,18 +94,27 @@ export const publicProfileApi = {
           event: "*",
           schema: "public",
           table: "connections",
-          // Filter is tricky for OR conditions in realtime, so we listen to all changes involves these users roughly
-          // Ideally, we'd filter strictly, but Supabase realtime filters are limited.
-          // We'll rely on client-side filtering or just re-checking status on any connection change for these users.
           filter: `sender_id=in.(${currentUserId},${dealerId})`,
         },
-        () => checkStatus()
+        (payload) => {
+          // console.log("🔔 Connection change detected:", payload);
+          checkStatus();
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "connections",
+          filter: `receiver_id=in.(${currentUserId},${dealerId})`,
+        },
+        (payload) => {
+          // console.log("🔔 Connection change detected (receiver):", payload);
+          checkStatus();
+        }
       )
       .subscribe();
-
-    // We need a second listener or a smarter filter because the first one only catches if sender is involved.
-    // Simpler approach: Just re-run checkStatus whenever ANY connection change happens involving this user.
-    // For specific optimization, backend triggers are better, but this works for client-side.
 
     return () => {
       supabase.removeChannel(channel);
@@ -90,7 +132,6 @@ export const publicProfileApi = {
 
       if (error) return null;
 
-      // Map snake_case to camelCase
       return {
         uid: data.id,
         displayName: data.display_name,
@@ -99,7 +140,8 @@ export const publicProfileApi = {
         role: data.role,
         onboardingStatus: data.onboarding_status,
         city: data.city,
-        // ... other fields
+        phoneNumber: data.phone_number,
+        privacySettings: data.privacy_settings || "Everyone",
       };
     } catch (error) {
       console.error("❌ Error fetching dealer profile:", error);
@@ -113,15 +155,14 @@ export const publicProfileApi = {
       const { data, error } = await supabase
         .from("products")
         .select("*")
-        .eq("user_id", dealerId) // ✅ FIXED: Changed 'owner_id' to 'user_id'
+        .eq("user_id", dealerId)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
 
-      // Map to frontend Product type
       return data.map((doc: any) => ({
         id: doc.id,
-        userId: doc.user_id, // ✅ FIXED
+        userId: doc.user_id,
         name: doc.name,
         price: doc.price,
         description: doc.description,
@@ -130,7 +171,6 @@ export const publicProfileApi = {
         createdAt: doc.created_at
           ? new Date(doc.created_at).getTime()
           : Date.now(),
-        // These are empty because we are already on the dealer's profile
         dealerName: "",
         city: "",
       }));
@@ -143,9 +183,6 @@ export const publicProfileApi = {
   // 4. Fetch Connections
   fetchDealerConnections: async (dealerId: string): Promise<any[]> => {
     try {
-      // console.log(`👥 Finding friends for: ${dealerId}`);
-
-      // Step A: Find accepted connections
       const { data: connections, error } = await supabase
         .from("connections")
         .select("sender_id, receiver_id")
@@ -156,14 +193,12 @@ export const publicProfileApi = {
 
       if (!connections || connections.length === 0) return [];
 
-      // Step B: Extract Friend IDs
       const friendIds = connections.map((c) =>
         c.sender_id === dealerId ? c.receiver_id : c.sender_id
       );
 
       if (friendIds.length === 0) return [];
 
-      // Step C: Fetch Profiles (Limit 10)
       const { data: users, error: usersError } = await supabase
         .from("profiles")
         .select("*")
@@ -183,46 +218,99 @@ export const publicProfileApi = {
     }
   },
 
-  // 5. Send Request
+  // 5. Send Request (with duplicate check)
   sendConnectionRequest: async (
     currentUserId: string,
     dealerId: string
   ): Promise<void> => {
     try {
-      console.log(`📤 Sending connection request to ${dealerId}`);
+      // console.log(`📤 Sending connection request to ${dealerId}`);
 
+      // First, check if a connection already exists
+      const { data: existing, error: checkError } = await supabase
+        .from("connections")
+        .select("*")
+        .or(
+          `and(sender_id.eq.${currentUserId},receiver_id.eq.${dealerId}),and(sender_id.eq.${dealerId},receiver_id.eq.${currentUserId})`
+        )
+        .maybeSingle();
+
+      if (checkError) throw checkError;
+
+      if (existing) {
+        // console.log("⚠️ Connection already exists");
+        throw new Error("Connection request already exists");
+      }
+
+      // Insert new connection
       const { error } = await supabase.from("connections").insert({
         sender_id: currentUserId,
         receiver_id: dealerId,
         status: "pending",
-        users: [currentUserId, dealerId], // kept for array searching compatibility if needed
+        users: [currentUserId, dealerId],
       });
 
-      if (error) throw error;
+      if (error) {
+        // Handle duplicate key error specifically
+        if (error.code === "23505") {
+          throw new Error("Connection request already exists");
+        }
+        throw error;
+      }
 
-      console.log("✅ Connection request sent");
-    } catch (error) {
+      // console.log("✅ Connection request sent");
+      
+      // Small delay to ensure DB has committed before real-time triggers
+      await new Promise(resolve => setTimeout(resolve, 150));
+    } catch (error: any) {
       console.error("❌ Error sending connection request:", error);
-      throw new Error("Failed to send connection request");
+      throw error;
     }
   },
 
   // 6. Accept Request
   acceptConnectionRequest: async (
-    currentUserId: string, // Receiver (Me)
-    senderId: string // Sender (Them)
+    currentUserId: string,
+    senderId: string
   ): Promise<void> => {
     try {
+      // console.log(`🤝 Accepting connection request from ${senderId}`);
+      
       const { error } = await supabase
         .from("connections")
         .update({ status: "accepted" })
         .eq("sender_id", senderId)
-        .eq("receiver_id", currentUserId);
+        .eq("receiver_id", currentUserId)
+        .eq("status", "pending"); // Only update if still pending
 
       if (error) throw error;
+      
+      // console.log("✅ Connection request accepted");
     } catch (error) {
       console.error("❌ Error accepting request:", error);
       throw error;
+    }
+  },
+
+  // Check if user is in selected connections
+  checkSelectedConnection: async (
+    profileOwnerId: string,
+    viewerId: string
+  ): Promise<boolean> => {
+    try {
+      const { data, error } = await supabase
+        .from("selected_connections")
+        .select("id")
+        .eq("user_id", profileOwnerId)
+        .eq("selected_user_id", viewerId)
+        .maybeSingle();
+
+      if (error) throw error;
+      
+      return !!data; // Returns true if found, false if not
+    } catch (error) {
+      console.error("❌ Error checking selected connection:", error);
+      return false;
     }
   },
 
@@ -232,7 +320,7 @@ export const publicProfileApi = {
     dealerId: string
   ): Promise<void> => {
     try {
-      console.log(`🚫 Removing connection with ${dealerId}`);
+      // console.log(`🚫 Removing connection with ${dealerId}`);
 
       const { error } = await supabase
         .from("connections")
@@ -243,7 +331,7 @@ export const publicProfileApi = {
 
       if (error) throw error;
 
-      console.log("✅ Connection removed");
+      // console.log("✅ Connection removed");
     } catch (error) {
       console.error("❌ Error canceling connection request:", error);
       throw new Error("Failed to cancel connection request");

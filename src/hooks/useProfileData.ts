@@ -1,35 +1,45 @@
 import { profileApi } from "@/src/services/api/profileApi";
 import { supabase } from "@/src/supabaseConfig";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 interface UseProfileDataReturn {
   profileData: any | null;
   listings: any[];
   connectionsUsers: any[];
   loading: boolean;
-  refetch: () => Promise<void>; // ✅ Added refetch type
+  refetch: () => Promise<void>;
 }
 
-export function useProfileData(userId: string | undefined): UseProfileDataReturn {
+export function useProfileData(
+  userId: string | undefined,
+): UseProfileDataReturn {
   const [listings, setListings] = useState<any[]>([]);
   const [profileData, setProfileData] = useState<any>(null);
   const [connectionsUsers, setConnectionsUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // ✅ USE REF to store userId - prevents unnecessary recreations
+  const userIdRef = useRef(userId);
+  useEffect(() => {
+    userIdRef.current = userId;
+  }, [userId]);
+
   // ------------------------------------------
   // 1. Define Data Fetchers (Reusable)
   // ------------------------------------------
 
-  // Fetch Connections Logic
+  // ✅ STABLE fetchConnections - no dependencies
   const fetchConnections = useCallback(async () => {
-    if (!userId) return;
+    const currentUserId = userIdRef.current;
+    if (!currentUserId) return;
+
     try {
       // A. Fetch accepted connections
       const { data: connections, error } = await supabase
         .from("connections")
         .select("sender_id, receiver_id")
         .eq("status", "accepted")
-        .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`);
+        .or(`sender_id.eq.${currentUserId},receiver_id.eq.${currentUserId}`);
 
       if (error) throw error;
 
@@ -40,7 +50,7 @@ export function useProfileData(userId: string | undefined): UseProfileDataReturn
 
       // B. Extract Friend IDs
       const friendIds = connections.map((conn) =>
-        conn.sender_id === userId ? conn.receiver_id : conn.sender_id
+        conn.sender_id === currentUserId ? conn.receiver_id : conn.sender_id,
       );
 
       if (friendIds.length === 0) {
@@ -68,20 +78,18 @@ export function useProfileData(userId: string | undefined): UseProfileDataReturn
     } catch (err) {
       console.error("Error fetching connections:", err);
     }
-  }, [userId]);
+  }, []); // ✅ Empty deps - stable reference
 
-  // ✅ MANUAL REFETCH FUNCTION
-  // This is what Pull-to-Refresh calls
+  // ✅ STABLE refetch - no dependencies that change
   const refetch = useCallback(async () => {
-    if (!userId) return;
-    console.log("🔄 Manual refetch triggered...");
-    
+    const currentUserId = userIdRef.current;
+    if (!currentUserId) return;
+
     try {
       // 1. Manually fetch Profile & Listings (One-time fetch)
-      // We use the helper methods from profileApi we created earlier
       const [newProfile, newListings] = await Promise.all([
-        profileApi.getUserProfile(userId),
-        profileApi.getUserPosts(userId)
+        profileApi.getUserProfile(currentUserId),
+        profileApi.getUserPosts(currentUserId),
       ]);
 
       if (newProfile) setProfileData(newProfile);
@@ -89,11 +97,10 @@ export function useProfileData(userId: string | undefined): UseProfileDataReturn
 
       // 2. Manually fetch Connections
       await fetchConnections();
-      
     } catch (error) {
       console.error("Refetch error:", error);
     }
-  }, [userId, fetchConnections]);
+  }, [fetchConnections]); // ✅ fetchConnections is now stable
 
   // ------------------------------------------
   // 2. Real-time Subscriptions (Effects)
@@ -117,7 +124,7 @@ export function useProfileData(userId: string | undefined): UseProfileDataReturn
       (error) => {
         console.error("Profile subscription error:", error);
         setLoading(false);
-      }
+      },
     );
 
     return () => {
@@ -144,9 +151,8 @@ export function useProfileData(userId: string | undefined): UseProfileDataReturn
           filter: `status=eq.accepted`,
         },
         () => {
-          console.log("🔔 Connections changed, refreshing list...");
           fetchConnections();
-        }
+        },
       )
       .subscribe();
 
@@ -155,7 +161,6 @@ export function useProfileData(userId: string | undefined): UseProfileDataReturn
     };
   }, [userId, fetchConnections]);
 
-  // ✅ Return refetch
   return {
     profileData,
     listings,

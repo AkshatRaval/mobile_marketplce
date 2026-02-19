@@ -1,9 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
+import { FlashList, FlashListRef } from "@shopify/flash-list";
 import { useRouter } from "expo-router";
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import {
   ActivityIndicator,
-  FlatList,
   StatusBar,
   Text,
   TextInput,
@@ -17,10 +17,13 @@ import {
   CARD_HEIGHT,
   SearchProductCard,
 } from "@/src/components/SearchProductCard";
+import { useTabRefresh } from "@/src/context/TabelRefreshContext";
 import { useSearch } from "@/src/hooks/useSearch";
 
 export default function SearchPage() {
   const router = useRouter();
+  const { subscribeToRefresh } = useTabRefresh();
+
   const {
     searchText,
     setSearchText,
@@ -28,30 +31,52 @@ export default function SearchPage() {
     loading,
     hasSearched,
     handleSearch,
+    clearSearch, // ✅ Now using this!
   } = useSearch();
 
+  // FlashList ref for scrolling to top
+  const flatListRef = useRef<FlashListRef<any>>(null);
+  // TextInput ref for focusing
+  const searchInputRef = useRef<TextInput>(null);
+
+  // Subscribe to double-tap refresh events
+  useEffect(() => {
+    const unsubscribe = subscribeToRefresh("search", () => {
+      // console.log("🔄 Resetting search & scrolling to top...");
+
+      // Scroll to top if there are results
+      if (results.length > 0) {
+        flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+      }
+
+      // Clear everything: searchText, results, and hasSearched
+      clearSearch();
+    });
+
+    return unsubscribe;
+  }, [subscribeToRefresh, clearSearch, results.length]);
+
   return (
-    // EXTRACTED FROM: Original lines 212-214
     <SafeAreaView className="flex-1 bg-white" edges={["top"]}>
       <StatusBar barStyle="dark-content" />
 
       {/* HEADER SECTION */}
-      {/* EXTRACTED FROM: Original lines 216-241 */}
       <View className="px-4 pb-2 border-b border-gray-100 z-10 bg-white">
-        {/* PAGE TITLE - LINE 217-219 */}
+        {/* PAGE TITLE */}
         <Text className="text-2xl font-black text-gray-900 mb-4 mt-2">
           Search
         </Text>
 
-        {/* SEARCH INPUT ROW - LINE 220-239 */}
+        {/* SEARCH INPUT ROW */}
         <View className="flex-row items-center space-x-2 mb-2">
-          {/* SEARCH INPUT BOX - LINE 221-234 */}
+          {/* SEARCH INPUT BOX */}
           <View className="flex-1 bg-gray-100 rounded-xl flex-row items-center px-4 py-3">
-            {/* SEARCH ICON - LINE 222 */}
+            {/* SEARCH ICON */}
             <Ionicons name="search" size={20} color="#9CA3AF" />
 
-            {/* TEXT INPUT - LINE 223-230 */}
+            {/* TEXT INPUT */}
             <TextInput
+              ref={searchInputRef}
               className="flex-1 ml-3 text-gray-900 font-medium text-base"
               placeholder="iPhone 15, Samsung..."
               placeholderTextColor="#9CA3AF"
@@ -61,7 +86,7 @@ export default function SearchPage() {
               onSubmitEditing={handleSearch}
             />
 
-            {/* CLEAR BUTTON - LINE 231-233 */}
+            {/* CLEAR BUTTON */}
             {searchText.length > 0 && (
               <TouchableOpacity onPress={() => setSearchText("")}>
                 <Ionicons name="close-circle" size={18} color="#9CA3AF" />
@@ -69,7 +94,7 @@ export default function SearchPage() {
             )}
           </View>
 
-          {/* SEARCH BUTTON - LINE 235-239 */}
+          {/* SEARCH BUTTON */}
           <TouchableOpacity
             onPress={handleSearch}
             className="bg-indigo-600 rounded-xl p-3.5"
@@ -80,48 +105,48 @@ export default function SearchPage() {
       </View>
 
       {/* RESULTS SECTION */}
-      {/* EXTRACTED FROM: Original lines 243-272 */}
       <View className="flex-1 bg-gray-50">
-        {/* LOADING STATE - LINE 244-248 */}
+        {/* LOADING STATE */}
         {loading ? (
           <View className="flex-1 justify-center items-center">
             <ActivityIndicator size="large" color="#4F46E5" />
           </View>
-        ) : /* INITIAL STATE (before search) - LINE 249-254 */
-        !hasSearched ? (
-          <View className="flex-1 justify-center items-center opacity-40 pb-20">
-            <Ionicons name="search-outline" size={80} color="#CBD5E1" />
-            <Text className="text-gray-400 mt-4 font-medium">
-              Type to search inventory
-            </Text>
-          </View>
-        ) : /* NO RESULTS STATE - LINE 255-261 */
-        results.length === 0 ? (
-          <View className="flex-1 justify-center items-center pb-20">
-            <Ionicons name="alert-outline" size={50} color="#64748B" />
-            <Text className="text-gray-900 font-bold text-lg mt-4">
-              No Results Found
-            </Text>
-          </View>
-        ) : (
-          /* RESULTS LIST - LINE 262-279 */
-          <FlatList
-            data={results}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <SearchProductCard item={item} />
+        ) : /* INITIAL STATE (before search) */
+          !hasSearched ? (
+            <View className="flex-1 justify-center items-center opacity-40 pb-20">
+              <Ionicons name="search-outline" size={80} color="#CBD5E1" />
+              <Text className="text-gray-400 mt-4 font-medium">
+                Type to search inventory
+              </Text>
+            </View>
+          ) : /* NO RESULTS STATE */
+            results.length === 0 ? (
+              <View className="flex-1 justify-center items-center pb-20">
+                <Ionicons name="alert-outline" size={50} color="#64748B" />
+                <Text className="text-gray-900 font-bold text-lg mt-4">
+                  No Results Found
+                </Text>
+              </View>
+            ) : (
+              /* RESULTS LIST */
+              <FlashList
+                ref={flatListRef}
+                data={results}
+                keyExtractor={(item) => item.id}
+                renderItem={({ item }) => (
+                  <SearchProductCard item={item} />
+                )}
+                // REELS-STYLE SNAPPING
+                snapToInterval={CARD_HEIGHT}
+                snapToAlignment="start"
+                decelerationRate="fast"
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{
+                  paddingTop: 12,
+                  paddingBottom: 20,
+                }}
+              />
             )}
-            // REELS-STYLE SNAPPING
-            // LINE 268-269: Snap to card height
-            snapToInterval={CARD_HEIGHT}
-            snapToAlignment="start"
-            decelerationRate="fast"
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={{
-              paddingBottom: 20,
-            }}
-          />
-        )}
       </View>
     </SafeAreaView>
   );

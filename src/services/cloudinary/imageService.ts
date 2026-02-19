@@ -58,7 +58,7 @@ export const cloudinaryService = {
         throw new Error("No secure URL in Cloudinary response");
       }
 
-      console.log("✅ Image uploaded to Cloudinary:", data.secure_url);
+      // console.log("✅ Image uploaded to Cloudinary:", data.secure_url);
       return data.secure_url;
     } catch (error) {
       console.error("❌ Cloudinary upload error:", error);
@@ -71,14 +71,14 @@ export const cloudinaryService = {
    */
   uploadMultipleImages: async (uris: string[]): Promise<string[]> => {
     try {
-      console.log(`📤 Uploading ${uris.length} images to Cloudinary...`);
+      // console.log(`📤 Uploading ${uris.length} images to Cloudinary...`);
 
       const uploadPromises = uris.map((uri) =>
         cloudinaryService.uploadImage(uri)
       );
       const urls = await Promise.all(uploadPromises);
 
-      console.log(`✅ All ${urls.length} images uploaded successfully`);
+      // console.log(`✅ All ${urls.length} images uploaded successfully`);
       return urls;
     } catch (error) {
       console.error("❌ Error uploading multiple images:", error);
@@ -91,17 +91,17 @@ export const cloudinaryService = {
    */
   deleteImage: async (imageUrl: string): Promise<void> => {
     if (!imageUrl) {
-      console.log("⚠️ No image URL provided");
+      // console.log("⚠️ No image URL provided");
       return;
     }
 
     try {
-      console.log(`🗑️ Deleting image from Cloudinary: ${imageUrl}`);
+      // console.log(`🗑️ Deleting image from Cloudinary: ${imageUrl}`);
 
       // Extract path from URL
       const split = imageUrl.split("/upload/");
       if (split.length < 2) {
-        console.log("⚠️ Invalid Cloudinary URL format");
+        // console.log("⚠️ Invalid Cloudinary URL format");
         return;
       }
 
@@ -136,9 +136,9 @@ export const cloudinaryService = {
       );
 
       if (response.ok) {
-        console.log("✅ Image deleted from Cloudinary");
+        // console.log("✅ Image deleted from Cloudinary");
       } else {
-        console.log("⚠️ Cloudinary delete response:", await response.text());
+        // console.log("⚠️ Cloudinary delete response:", await response.text());
       }
     } catch (error) {
       console.error("❌ Cloudinary delete error:", error);
@@ -151,14 +151,14 @@ export const cloudinaryService = {
   deleteMultipleImages: async (imageUrls: string[]): Promise<void> => {
     if (!imageUrls || imageUrls.length === 0) return;
 
-    console.log(`🗑️ Deleting ${imageUrls.length} images from Cloudinary...`);
+    // console.log(`🗑️ Deleting ${imageUrls.length} images from Cloudinary...`);
 
     // Delete all images in parallel
     await Promise.all(
       imageUrls.map((url) => cloudinaryService.deleteImage(url))
     );
 
-    console.log("✅ All images deleted");
+    // console.log("✅ All images deleted");
   },
 
   // ========================================

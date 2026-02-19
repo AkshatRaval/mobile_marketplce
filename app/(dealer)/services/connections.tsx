@@ -1,11 +1,11 @@
 import { useAuth } from "@/src/context/AuthContext";
 import { useAcceptedConnections } from "@/src/hooks/useAcceptedConnections";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { FlashList } from "@shopify/flash-list";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React from "react";
 import {
   ActivityIndicator,
-  FlatList,
   Image,
   Linking,
   RefreshControl,
@@ -21,7 +21,10 @@ export default function MyConnections() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  const { connections, loading, refetch } = useAcceptedConnections(user?.id);
+  const { userId } = useLocalSearchParams();
+  const targetUserId = (Array.isArray(userId) ? userId[0] : userId) || user?.id;
+
+  const { connections, loading, refetch } = useAcceptedConnections(targetUserId);
   const [refreshing, setRefreshing] = React.useState(false);
 
   const onRefresh = async () => {
@@ -44,7 +47,9 @@ export default function MyConnections() {
           <TouchableOpacity onPress={() => router.back()} className="mr-4 bg-gray-50 p-2 rounded-full">
             <Ionicons name="arrow-back" size={24} color="#1F2937" />
           </TouchableOpacity>
-          <Text className="text-2xl font-black text-gray-900 tracking-tight">My Circle</Text>
+          <Text className="text-2xl font-black text-gray-900 tracking-tight">
+            {userId && userId !== user?.id ? "User's Circle" : "My Circle"}
+          </Text>
         </View>
         <View className="bg-indigo-50 px-3 py-1 rounded-full">
           <Text className="text-indigo-700 font-bold text-xs">{connections.length} Connected</Text>
@@ -65,7 +70,7 @@ export default function MyConnections() {
           </TouchableOpacity>
         </View>
       ) : (
-        <FlatList
+        <FlashList
           data={connections}
           keyExtractor={(item) => item.uid}
           contentContainerStyle={{ padding: 20, paddingBottom: 100 }}

@@ -10,7 +10,7 @@ export const userApi = {
    */
   getUserById: async (userId: string): Promise<UserProfile | null> => {
     try {
-      console.log(`👤 Fetching user profile: ${userId}`);
+      // console.log(`👤 Fetching user profile: ${userId}`);
 
       const { data, error } = await supabase
         .from("profiles")
@@ -19,11 +19,11 @@ export const userApi = {
         .single();
 
       if (error || !data) {
-        console.log("❌ User not found or error:", error?.message);
+        // console.log("❌ User not found or error:", error?.message);
         return null;
       }
 
-      console.log("✅ User profile fetched");
+      // console.log("✅ User profile fetched");
 
       // Map snake_case database fields to camelCase UserProfile type
       return {
@@ -52,7 +52,7 @@ export const userApi = {
    */
   getUserPhoneNumber: async (userId: string): Promise<string | null> => {
     try {
-      console.log(`📞 Fetching phone number for user: ${userId}`);
+      // console.log(`📞 Fetching phone number for user: ${userId}`);
 
       const { data, error } = await supabase
         .from("profiles")
@@ -61,7 +61,7 @@ export const userApi = {
         .single();
 
       if (error || !data || !data.phone) {
-        console.log("❌ User or phone not found");
+        // console.log("❌ User or phone not found");
         return null;
       }
 
@@ -75,7 +75,7 @@ export const userApi = {
         phone = "91" + phone;
       }
 
-      console.log("✅ Phone number retrieved");
+      // console.log("✅ Phone number retrieved");
       return phone;
 
     } catch (error: any) {
@@ -94,7 +94,7 @@ export const userApi = {
       }
 
       const safeIds = userIds.slice(0, 10);
-      console.log(`👥 Fetching ${safeIds.length} user profiles...`);
+      // console.log(`👥 Fetching ${safeIds.length} user profiles...`);
 
       const { data, error } = await supabase
         .from("profiles")
@@ -118,7 +118,7 @@ export const userApi = {
         listings: [],
       }));
 
-      console.log(`✅ Fetched ${users.length} profiles`);
+      // console.log(`✅ Fetched ${users.length} profiles`);
       return users;
 
     } catch (error: any) {

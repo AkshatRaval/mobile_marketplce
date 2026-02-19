@@ -2,26 +2,31 @@ import { supabase } from "@/src/supabaseConfig"; // ✅ Import Supabase
 import type { Product } from "@/src/types";
 import { communications } from "@/src/utils/communications";
 import { Ionicons } from "@expo/vector-icons";
+import { FlashList } from "@shopify/flash-list";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useEffect, useRef, useState } from "react";
 import {
   Dimensions,
-  FlatList,
   Image,
   Pressable,
   Text,
   TouchableOpacity,
   View,
-  ViewToken,
+  ViewToken
 } from "react-native";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 // Helper to reliably get the User ID
 const getCreatorId = (item: any): string | null => {
-  return (
-    item?.userId || item?.owner_id || item?.dealerId || item?.createdBy || null
-  );
+  const uid = item?.userId || item?.owner_id || item?.dealerId || item?.createdBy || null;
+  // console.log("🔍 getCreatorId called for product:", item?.name);
+  // console.log("  - item.userId:", item?.userId);
+  // console.log("  - item.owner_id:", item?.owner_id);
+  // console.log("  - item.dealerId:", item?.dealerId);
+  // console.log("  - item.createdBy:", item?.createdBy);
+  // console.log("  - Resolved UID:", uid);
+  return uid;
 };
 
 interface ProductCardProps {
@@ -35,7 +40,7 @@ export const ProductCard = React.memo(
   ({ item, height, onPressProfile, onPressImage }: ProductCardProps) => {
     const [activeIndex, setActiveIndex] = useState(0);
     const [expanded, setExpanded] = useState(false);
-    
+
     // ✅ NEW: State to hold the fetched profile data
     const [dealerProfile, setDealerProfile] = useState({
       name: item.dealerName || "Dealer",
@@ -80,7 +85,7 @@ export const ProductCard = React.memo(
           }
         } catch (e) {
           // Fail silently and keep default/fallback values
-          console.log("Profile fetch failed in card (silent)");
+          // console.log("Profile fetch failed in card (silent)");
         }
       };
 
@@ -98,6 +103,20 @@ export const ProductCard = React.memo(
       );
     };
 
+    const handleProfileClick = () => {
+      const uid = getCreatorId(item);
+      // console.log("🎯 Profile badge clicked in ProductCard");
+      // console.log("  - Product name:", item.name);
+      // console.log("  - Extracted UID:", uid);
+
+      if (uid) {
+        // console.log("  - Calling onPressProfile with UID:", uid);
+        onPressProfile(uid);
+      } else {
+        // console.log("  ❌ No UID found, not calling onPressProfile");
+      }
+    };
+
     return (
       <View style={{ height, width: SCREEN_WIDTH, backgroundColor: "white" }}>
         {/* Card Container with margins */}
@@ -112,7 +131,7 @@ export const ProductCard = React.memo(
           }}
         >
           {/* IMAGE SLIDER */}
-          <FlatList
+          <FlashList
             data={images}
             horizontal
             pagingEnabled
@@ -149,10 +168,7 @@ export const ProductCard = React.memo(
 
           {/* DEALER BADGE - TOP */}
           <TouchableOpacity
-            onPress={() => {
-              const uid = getCreatorId(item);
-              if (uid) onPressProfile(uid);
-            }}
+            onPress={handleProfileClick}
             style={{
               position: "absolute",
               top: 16,
@@ -185,7 +201,7 @@ export const ProductCard = React.memo(
               <Text style={{ color: "white", fontSize: 12, fontWeight: "700" }}>
                 {dealerProfile.name}
               </Text>
-              
+
               <View style={{ flexDirection: "row", alignItems: "center", marginTop: 2 }}>
                 <Ionicons name="location-sharp" size={10} color="#9CA3AF" />
                 <Text style={{ color: "#D1D5DB", fontSize: 10, marginLeft: 2 }}>

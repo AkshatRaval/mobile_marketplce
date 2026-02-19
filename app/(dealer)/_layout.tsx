@@ -1,7 +1,10 @@
 import { useAuth } from "@/src/context/AuthContext";
-import { TabRefreshProvider, useTabRefresh } from "@/src/context/TabelRefreshContext";
+import {
+  TabRefreshProvider,
+  useTabRefresh,
+} from "@/src/context/TabelRefreshContext";
 import { Ionicons } from "@expo/vector-icons";
-import { Redirect, Tabs } from "expo-router";
+import { Redirect, Tabs, usePathname } from "expo-router";
 import React, { useRef } from "react";
 import { ActivityIndicator, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -13,7 +16,10 @@ function TabsContent() {
   const { user, userDoc, loading } = useAuth();
   const insets = useSafeAreaInsets();
   const { triggerRefresh } = useTabRefresh();
-  
+  const pathname = usePathname();
+
+
+
   // Track last tap time for each tab
   const lastTapRef = useRef<{ [key: string]: number }>({});
 
@@ -40,20 +46,18 @@ function TabsContent() {
     ...props
   }: any) => {
     const handlePress = () => {
-      const now = Date.now();
-      const lastTap = lastTapRef.current[routeName] || 0;
-      const timeSinceLastTap = now - lastTap;
+      // Check if current path corresponds to this tab
+      // e.g. pathname="/dealer/home" and routeName="home" -> Match
+      const isActive = pathname?.includes(routeName) ||
+        (routeName === 'profile/index' && pathname?.includes('profile'));
 
-      if (timeSinceLastTap < DOUBLE_TAP_DELAY) {
-        // Double-tap detected - trigger refresh
-        console.log(`🔄 Double-tap detected on ${routeName}`);
+      if (isActive) {
+        // Already active -> Refresh
         triggerRefresh(routeName);
       } else {
-        // Single tap - normal navigation
+        // Not active -> Navigate
         onPress?.();
       }
-
-      lastTapRef.current[routeName] = now;
     };
 
     return (
@@ -160,6 +164,7 @@ function TabsContent() {
       <Tabs.Screen name="services/sales-logs" options={{ href: null }} />
       <Tabs.Screen name="profile/[id]" options={{ href: null }} />
       <Tabs.Screen name="services/connections" options={{ href: null }} />
+      <Tabs.Screen name="services/product-feed" options={{ href: null }} />
     </Tabs>
   );
 }

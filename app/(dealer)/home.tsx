@@ -6,14 +6,15 @@ import { useConnectionRequests } from "@/src/hooks/useConnectionRequests";
 import { useProducts } from "@/src/hooks/useProducts";
 import type { Product } from "@/src/types";
 import { Ionicons } from "@expo/vector-icons";
+import { FlashList, FlashListRef } from "@shopify/flash-list";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Dimensions,
-  FlatList,
   Image,
   LogBox,
   Modal,
+  Platform,
   Pressable,
   RefreshControl,
   StatusBar,
@@ -21,7 +22,8 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import ImageView from "react-native-image-viewing";
+
+// import ImageView from "react-native-image-viewing";
 import {
   configureReanimatedLogger,
   ReanimatedLogLevel,
@@ -43,11 +45,20 @@ LogBox.ignoreLogs([
 
 type TabType = "all" | "connections";
 
+let ImageView: any = null;
+
+if (Platform.OS !== "web") {
+  ImageView = require("react-native-image-viewing").default;
+}
+
 export default function DealerHome() {
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { subscribeToRefresh } = useTabRefresh();
+
+  // FlashList ref for scrolling to top
+  const flatListRef = React.useRef<FlashListRef<Product>>(null);
 
   // Active Tab State
   const [activeTab, setActiveTab] = useState<TabType>("all");
@@ -56,7 +67,9 @@ export default function DealerHome() {
   const { products, loading: productsLoading, refetch } = useProducts();
 
   // Accepted Connections
-  const { connectionIds, loading: connectionsLoading } = useAcceptedConnections(user?.id);
+  const { connectionIds, loading: connectionsLoading } = useAcceptedConnections(
+    user?.id
+  );
 
   // Connection Requests
   const {
@@ -64,10 +77,12 @@ export default function DealerHome() {
     loading: requestsLoading,
     acceptRequest,
     rejectRequest,
+    refetch: refetchRequests,
   } = useConnectionRequests(user?.id);
 
   // Local UI state
   const [isNotifVisible, setIsNotifVisible] = useState(false);
+  const [notifRefreshing, setNotifRefreshing] = useState(false);
   const [viewerData, setViewerData] = useState({
     visible: false,
     images: [] as { uri: string }[],
@@ -76,8 +91,13 @@ export default function DealerHome() {
 
   // Subscribe to double-tap refresh events
   useEffect(() => {
-    const unsubscribe = subscribeToRefresh('home', () => {
-      console.log('🔄 Refreshing Home feed...');
+    const unsubscribe = subscribeToRefresh("home", () => {
+      // // console.log("🔄 Refreshing Home feed & scrolling to top...");
+
+      // Scroll to top with animation
+      flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+
+      // Refresh data
       refetch();
     });
 
@@ -113,14 +133,31 @@ export default function DealerHome() {
   }, [sortedProducts, connectionIds]);
 
   // Display Products based on active tab
-  const displayProducts = activeTab === "all" ? sortedProducts : connectionsProducts;
+  const displayProducts =
+    activeTab === "all" ? sortedProducts : connectionsProducts;
 
   const handleProfilePress = useCallback(
     (uid: string) => {
-      if (!uid) return;
-      router.push(`/profile/${uid}`);
+      // console.log("🔍 Profile clicked:");
+      // console.log("  - Clicked UID:", uid);
+      // console.log("  - Current User ID:", user?.id);
+      // console.log("  - Is same user?", uid === user?.id);
+
+      if (!uid) {
+        // console.log("  ❌ No UID provided");
+        return;
+      }
+
+      // If it's the current user's profile, navigate to their own profile page
+      if (uid === user?.id) {
+        // console.log("  ➡️ Navigating to own profile");
+        router.push("/(dealer)/profile");
+      } else {
+        // console.log("  ➡️ Navigating to other user's profile:", `/(dealer)/profile/${uid}`);
+        router.push(`/(dealer)/profile/${uid}`);
+      }
     },
-    [router]
+    [router, user?.id]
   );
 
   const handleImagePress = useCallback((images: string[], index: number) => {
@@ -145,12 +182,18 @@ export default function DealerHome() {
     [REEL_HEIGHT, handleProfilePress, handleImagePress]
   );
 
+  // Notification modal refresh handler
+  const handleNotificationRefresh = useCallback(async () => {
+    setNotifRefreshing(true);
+    await refetchRequests();
+    setNotifRefreshing(false);
+  }, [refetchRequests]);
+
   const isLoading = productsLoading || connectionsLoading;
 
   return (
     <SafeAreaView className="flex-1 bg-white" edges={["top"]}>
       <StatusBar barStyle="dark-content" />
-
       {/* HEADER WITH TABS & NOTIFICATION */}
       <View
         className="px-4 bg-white border-b border-gray-100 flex-row items-center justify-between"
@@ -160,14 +203,12 @@ export default function DealerHome() {
         <View className="flex-row flex-1 gap-1">
           <TouchableOpacity
             onPress={() => setActiveTab("all")}
-            className={`px-5 py-2.5 rounded-full ${
-              activeTab === "all" ? "bg-black" : "bg-gray-50"
-            }`}
+            className={`px-5 py-2.5 rounded-full ${activeTab === "all" ? "bg-black" : "bg-gray-50"
+              }`}
           >
             <Text
-              className={`font-bold text-sm ${
-                activeTab === "all" ? "text-white" : "text-gray-600"
-              }`}
+              className={`font-bold text-sm ${activeTab === "all" ? "text-white" : "text-gray-600"
+                }`}
             >
               All Feed
             </Text>
@@ -175,14 +216,12 @@ export default function DealerHome() {
 
           <TouchableOpacity
             onPress={() => setActiveTab("connections")}
-            className={`px-5 py-2.5 rounded-full ${
-              activeTab === "connections" ? "bg-black" : "bg-gray-50"
-            }`}
+            className={`px-5 py-2.5 rounded-full ${activeTab === "connections" ? "bg-black" : "bg-gray-50"
+              }`}
           >
             <Text
-              className={`font-bold text-sm ${
-                activeTab === "connections" ? "text-white" : "text-gray-600"
-              }`}
+              className={`font-bold text-sm ${activeTab === "connections" ? "text-white" : "text-gray-600"
+                }`}
             >
               Connections
             </Text>
@@ -201,7 +240,6 @@ export default function DealerHome() {
           )}
         </TouchableOpacity>
       </View>
-
       {/* FEED */}
       {displayProducts.length === 0 && !isLoading ? (
         <View className="flex-1 justify-center items-center opacity-50 px-10">
@@ -219,7 +257,8 @@ export default function DealerHome() {
           </TouchableOpacity>
         </View>
       ) : (
-        <FlatList
+        <FlashList
+          ref={flatListRef}
           data={displayProducts}
           keyExtractor={(item) => item.id}
           pagingEnabled
@@ -227,9 +266,6 @@ export default function DealerHome() {
           decelerationRate="fast"
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 0 }}
-          initialNumToRender={2}
-          maxToRenderPerBatch={2}
-          windowSize={3}
           renderItem={renderProductItem}
           refreshControl={
             <RefreshControl refreshing={isLoading} onRefresh={refetch} />
@@ -237,17 +273,17 @@ export default function DealerHome() {
           extraData={activeTab}
         />
       )}
-
       {/* GLOBAL IMAGE VIEWER */}
-      <ImageView
-        images={viewerData.images}
-        imageIndex={viewerData.index}
-        visible={viewerData.visible}
-        onRequestClose={() =>
-          setViewerData((prev) => ({ ...prev, visible: false }))
-        }
-      />
-
+      {ImageView && (
+        <ImageView
+          images={viewerData.images}
+          imageIndex={viewerData.index}
+          visible={viewerData.visible}
+          onRequestClose={() =>
+            setViewerData((prev) => ({ ...prev, visible: false }))
+          }
+        />
+      )}
       {/* NOTIFICATIONS MODAL */}
       <Modal
         visible={isNotifVisible}
@@ -287,10 +323,18 @@ export default function DealerHome() {
               </View>
             ) : (
               /* REQUEST LIST */
-              <FlatList
+              <FlashList
                 data={requestUsers}
                 keyExtractor={(item) => item.uid}
                 contentContainerStyle={{ padding: 24 }}
+                refreshControl={
+                  <RefreshControl
+                    refreshing={notifRefreshing}
+                    onRefresh={handleNotificationRefresh}
+                    tintColor="#4F46E5"
+                    colors={["#4F46E5"]}
+                  />
+                }
                 renderItem={({ item }) => (
                   <View className="flex-row items-center mb-6">
                     <Image

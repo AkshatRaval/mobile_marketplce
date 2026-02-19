@@ -21,7 +21,7 @@ export function usePublicProfile(dealerId: string | string[] | undefined): UsePu
     const fetchData = async () => {
       // 1. Validation
       if (!dealerId) {
-        console.log("⚠️ No dealer ID provided");
+        // console.log("⚠️ No dealer ID provided");
         setLoading(false);
         return;
       }

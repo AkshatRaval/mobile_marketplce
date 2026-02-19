@@ -4,7 +4,7 @@
 
 import * as ImagePicker from "expo-image-picker";
 import { useState } from "react";
-import { Alert } from "react-native";
+import { Alert, Platform } from "react-native";
 
 interface UseImagePickerReturn {
   images: string[];
@@ -28,11 +28,29 @@ export function useImagePicker(maxImages: number = 4): UseImagePickerReturn {
     }
 
     try {
-      // Launch image picker
+      // Request permissions first
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission Required",
+          "Please allow access to your photos to upload images."
+        );
+        return;
+      }
+
+      // Launch image picker with optimized settings
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        quality: 0.6,
+        allowsEditing: false, // No cropping screen
+        allowsMultipleSelection: false, // Single image at a time
+        quality: 0.7, // Balanced quality
+        exif: false, // Don't include metadata
+        base64: false, // Don't encode as base64
+        ...(Platform.OS === "android" && {
+          // Android-specific options to bypass crop screen
+          selectionLimit: 1,
+        }),
       });
 
       // Add image if not cancelled
@@ -55,7 +73,6 @@ export function useImagePicker(maxImages: number = 4): UseImagePickerReturn {
    */
   const clearImages = () => {
     setImages([]);
-    // console.log("🗑️ All images cleared");
   };
 
   const canAddMore = images.length < maxImages;

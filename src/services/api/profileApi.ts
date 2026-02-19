@@ -101,7 +101,7 @@ export const profileApi = {
           shopName: profile.shop_name,
           photoURL: profile.photo_url,
           email: profile.email,
-          phone: profile.phone,
+          phone: profile.phone_number || profile.phone,
           city: profile.city,
           role: profile.role,
           privacySettings: profile.privacy_settings,
@@ -144,7 +144,7 @@ export const profileApi = {
           filter: `id=eq.${userId}`,
         },
         () => {
-          console.log("🔔 Profile updated");
+          // console.log("🔔 Profile updated");
           refreshData();
         }
       )
@@ -197,7 +197,7 @@ export const profileApi = {
       }
     };
     fetchConnections();
-    return () => {};
+    return () => { };
   },
 
   deleteProduct: async (
@@ -317,7 +317,7 @@ export const profileApi = {
 
   recordSale: async (item: any, saleDetails: any): Promise<boolean> => {
     try {
-      console.log("🔄 Starting sale record for product:", item.id);
+      // console.log("🔄 Starting sale record for product:", item.id);
 
       // 1. Create Log Entry
       const { data: logData, error: logError } = await supabase
@@ -343,7 +343,7 @@ export const profileApi = {
         throw logError;
       }
 
-      // console.log("✅ Sales log created:", logData);
+      // // console.log("✅ Sales log created:", logData);
 
       const { data: deletedData, error: deleteError } = await supabase
         .from("products")
@@ -361,7 +361,7 @@ export const profileApi = {
         throw new Error("Product not found or already deleted");
       }
 
-      // console.log("✅ Product deleted successfully:", deletedData);
+      // // console.log("✅ Product deleted successfully:", deletedData);
       return true;
     } catch (error: any) {
       console.error("❌ Failed to record sale:", error.message || error);

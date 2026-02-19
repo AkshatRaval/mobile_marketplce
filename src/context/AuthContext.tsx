@@ -35,7 +35,7 @@ const AuthContext = createContext<AuthContextType>({
   userDoc: null,
   loading: true,
   isAdmin: false,
-  refreshProfile: async () => {},
+  refreshProfile: async () => { },
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -56,7 +56,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         .maybeSingle();
 
       if (error) {
-        console.log("⚠️ AuthContext: Profile fetch error", error.message);
+        // console.log("⚠️ AuthContext: Profile fetch error", error.message);
         return null;
       }
       return data as UserProfile;
@@ -88,8 +88,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             if (mounted) setUserDoc(profile);
           }
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error("Auth setup error:", error);
+
+        // FIX: If refresh token is invalid, force logout to clear stale data
+        if (error?.message?.includes("Refresh Token Not Found") ||
+          error?.message?.includes("Invalid Refresh Token")) {
+          console.log("♻️ Clearing invalid session...");
+          await supabase.auth.signOut();
+          if (mounted) {
+            setSession(null);
+            setUser(null);
+            setUserDoc(null);
+          }
+        }
       } finally {
         // Only set loading false ONCE after initial check
         if (mounted) setLoading(false);
@@ -98,8 +110,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       // 2. Listen for future changes (Login/Logout)
       const { data: { subscription } } = supabase.auth.onAuthStateChange(
         async (event, newSession) => {
-          console.log(`🔔 Auth Event: ${event}`);
-          
+          // console.log(`🔔 Auth Event: ${event}`);
+
           if (mounted) {
             setSession(newSession);
             setUser(newSession?.user ?? null);
@@ -113,7 +125,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             } else {
               setUserDoc(null);
             }
-            
+
             // ⚠️ CRITICAL FIX: Do NOT set loading(true) here. 
             // It causes infinite loops on token refresh.
           }

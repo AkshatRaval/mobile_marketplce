@@ -1,3 +1,9 @@
+export const unstable_settings = {
+  web: {
+    staticRendering: false,
+  },
+};
+
 import { AuthProvider } from "@/src/context/AuthContext";
 import {
   DarkTheme,

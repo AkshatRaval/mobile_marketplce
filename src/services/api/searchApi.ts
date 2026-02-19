@@ -50,8 +50,8 @@ export const searchApi = {
       data.forEach((doc: any) => {
         // Handle joined data flattening
         const profile = doc.profiles || {};
-        const dealerName = profile.display_name || profile.shop_name || "Unknown";
-        
+        const dealerName = profile.display_name || profile.shop_name || "Dealer";
+
         // Build searchable text from multiple fields
         // Note: extractedData is removed if not in your schema, but kept safe here
         const fullText = `${doc.name} ${doc.description || ""} ${dealerName} ${profile.city || ""}`.toLowerCase();
@@ -65,7 +65,7 @@ export const searchApi = {
             dealerName: dealerName,
             dealerAvatar: profile.photo_url,
             dealerPhone: profile.phone,
-            city: profile.city || "Unknown",
+            city: profile.city || "",
             name: doc.name,
             price: doc.price,
             description: doc.description,
@@ -112,15 +112,15 @@ export const searchApi = {
       // Map to Product type
       const products: Product[] = data.map((doc: any) => {
         const profile = doc.profiles || {};
-        
+
         return {
           id: doc.id,
           userId: doc.owner_id,
           dealerId: profile.id,
-          dealerName: profile.display_name || profile.shop_name || "Unknown",
+          dealerName: profile.display_name || profile.shop_name || "Dealer",
           dealerAvatar: profile.photo_url,
           dealerPhone: profile.phone,
-          city: profile.city || "Unknown",
+          city: profile.city || "",
           name: doc.name,
           price: doc.price,
           description: doc.description,

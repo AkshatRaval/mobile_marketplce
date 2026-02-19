@@ -12,7 +12,7 @@ export const connectionApi = {
     targetUserId: string
   ): Promise<void> => {
     try {
-      console.log(`📤 Sending request: ${currentUserId} -> ${targetUserId}`);
+      // console.log(`📤 Sending request: ${currentUserId} -> ${targetUserId}`);
 
       // Check if connection already exists to prevent duplicates
       const { data: existing } = await supabase
@@ -22,7 +22,7 @@ export const connectionApi = {
         .single();
 
       if (existing) {
-        console.log("⚠️ Connection already exists or pending");
+        // console.log("⚠️ Connection already exists or pending");
         return;
       }
 
@@ -35,7 +35,9 @@ export const connectionApi = {
 
       if (error) throw error;
 
-      console.log("✅ Connection request sent");
+
+
+      // console.log("✅ Connection request sent");
 
     } catch (error) {
       console.error("❌ Error sending request:", error);
@@ -52,7 +54,7 @@ export const connectionApi = {
     targetUserId: string
   ): Promise<void> => {
     try {
-      console.log(`🤝 Accepting connection: ${currentUserId} (Me) <- ${targetUserId} (Sender)`);
+      // console.log(`🤝 Accepting connection: ${currentUserId} (Me) <- ${targetUserId} (Sender)`);
 
       // I am the receiver, they are the sender
       const { error } = await supabase
@@ -63,7 +65,7 @@ export const connectionApi = {
 
       if (error) throw error;
 
-      console.log("✅ Connection request accepted");
+      // console.log("✅ Connection request accepted");
 
     } catch (error) {
       console.error("❌ Error accepting request:", error);
@@ -80,7 +82,7 @@ export const connectionApi = {
     targetUserId: string
   ): Promise<void> => {
     try {
-      console.log(`❌ Rejecting connection from: ${targetUserId}`);
+      // console.log(`❌ Rejecting connection from: ${targetUserId}`);
 
       // I am the receiver, they are the sender
       const { error } = await supabase
@@ -92,7 +94,7 @@ export const connectionApi = {
 
       if (error) throw error;
 
-      console.log("✅ Connection request rejected (deleted)");
+      // console.log("✅ Connection request rejected (deleted)");
 
     } catch (error) {
       console.error("❌ Error rejecting request:", error);
@@ -109,7 +111,7 @@ export const connectionApi = {
     targetUserId: string
   ): Promise<void> => {
     try {
-      console.log(`🔗 Removing connection: ${currentUserId} <-> ${targetUserId}`);
+      // console.log(`🔗 Removing connection: ${currentUserId} <-> ${targetUserId}`);
 
       // Delete where (Sender=Me AND Receiver=Them) OR (Sender=Them AND Receiver=Me)
       const { error } = await supabase
@@ -119,7 +121,7 @@ export const connectionApi = {
 
       if (error) throw error;
 
-      console.log("✅ Connection removed");
+      // console.log("✅ Connection removed");
 
     } catch (error) {
       console.error("❌ Error removing connection:", error);

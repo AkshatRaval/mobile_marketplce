@@ -1,6 +1,7 @@
 import { useAuth } from "@/src/context/AuthContext";
 import { profileApi } from "@/src/services/api/profileApi";
 import { Ionicons } from "@expo/vector-icons";
+import { FlashList } from "@shopify/flash-list";
 import * as Print from "expo-print";
 import { useRouter } from "expo-router";
 import * as Sharing from "expo-sharing";
@@ -8,7 +9,6 @@ import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  FlatList,
   Image,
   Modal,
   RefreshControl,
@@ -334,38 +334,34 @@ export default function SalesLogs() {
               <span class="info-label">Sale Type</span>
               <span class="info-value">${item.sale_type === "fast" ? "⚡ Fast Sale" : "📝 Detailed Sale"}</span>
             </div>
-            ${
-              item.buyer_name
-                ? `<div class="info-row">
+            ${item.buyer_name
+        ? `<div class="info-row">
               <span class="info-label">Buyer Name</span>
               <span class="info-value">${item.buyer_name}</span>
             </div>`
-                : ""
-            }
-            ${
-              item.buyer_phone
-                ? `<div class="info-row">
+        : ""
+      }
+            ${item.buyer_phone
+        ? `<div class="info-row">
               <span class="info-label">Buyer Contact</span>
               <span class="info-value">${item.buyer_phone}</span>
             </div>`
-                : ""
-            }
-            ${
-              item.imei
-                ? `<div class="info-row">
+        : ""
+      }
+            ${item.imei
+        ? `<div class="info-row">
               <span class="info-label">IMEI / Serial</span>
               <span class="info-value">${item.imei}</span>
             </div>`
-                : ""
-            }
-            ${
-              item.original_price
-                ? `<div class="info-row">
+        : ""
+      }
+            ${item.original_price
+        ? `<div class="info-row">
               <span class="info-label">Original Price</span>
               <span class="info-value">₹${item.original_price}</span>
             </div>`
-                : ""
-            }
+        : ""
+      }
           </div>
 
           <div class="price-section">
@@ -542,7 +538,7 @@ export default function SalesLogs() {
           </Text>
         </View>
       ) : (
-        <FlatList
+        <FlashList
           data={logs}
           keyExtractor={(item) => item.id || Math.random().toString()}
           renderItem={renderLogItem}

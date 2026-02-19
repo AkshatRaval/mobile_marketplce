@@ -3,7 +3,9 @@
   "compilerOptions": {
     "strict": true,
     "paths": {
-      "@firebase/auth": ["./nodd_modules/@firebase/auth/dist/index.rn.d.ts"],
+      "@firebase/auth": [
+        "./nodd_modules/@firebase/auth/dist/index.rn.d.ts"
+      ],
       "@/*": [
         "./*"
       ]
@@ -12,8 +14,7 @@
   "include": [
     "**/*.ts",
     "**/*.tsx",
-    ".expo/types/**/*.ts",
-    "expo-env.d.ts",
-    "nativewind-env.d.ts"
-, "scripts/user-migration.js"  ]
+    "nativewind-env.d.ts",
+    "scripts/user-migration.js"
+  ]
 }

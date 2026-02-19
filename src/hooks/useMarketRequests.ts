@@ -17,7 +17,7 @@ export function useMarketRequests(): UseMarketRequestsReturn {
 
   // ✅ FIXED: Manual Refetch Function
   const refetch = useCallback(async () => {
-    console.log("🔄 Manual refetching requests...");
+    // console.log("🔄 Manual refetching requests...");
     
     try {
       // ✅ FIX 1: Changed table name from 'market_requests' to 'requests'
@@ -53,7 +53,7 @@ export function useMarketRequests(): UseMarketRequestsReturn {
 
   // 2. Real-time Subscription (Unchanged)
   useEffect(() => {
-    console.log("🔌 Setting up requests subscription...");
+    // console.log("🔌 Setting up requests subscription...");
 
     const unsubscribe = requestApi.subscribeToRequests(
       (fetchedRequests) => {

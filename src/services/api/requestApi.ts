@@ -16,7 +16,7 @@ export const requestApi = {
     dealer_name: string; 
   }): Promise<string> => {
     try {
-      console.log("📝 Creating market request...");
+      // // console.log("📝 Creating market request...");
 
       const { data, error } = await supabase
         .from("requests")
@@ -34,7 +34,7 @@ export const requestApi = {
 
       if (error) throw error;
 
-      console.log("✅ Market request created:", data.id);
+      // console.log("✅ Market request created:", data.id);
       return data.id;
 
     } catch (error: any) {
@@ -50,7 +50,7 @@ export const requestApi = {
     onUpdate: (requests: MarketRequest[]) => void,
     onError?: (error: Error) => void
   ) => {
-    console.log("👂 Subscribing to market requests...");
+    // console.log("👂 Subscribing to market requests...");
 
     // 1. Helper to fetch data
     const fetchRequests = async () => {
@@ -96,7 +96,7 @@ export const requestApi = {
           table: "requests",
         },
         () => {
-          console.log("🔔 Market requests updated, refreshing...");
+          // console.log("🔔 Market requests updated, refreshing...");
           fetchRequests();
         }
       )
@@ -113,7 +113,7 @@ export const requestApi = {
    */
   deleteRequest: async (requestId: string): Promise<void> => {
     try {
-      console.log("🗑️ Deleting request:", requestId);
+      // console.log("🗑️ Deleting request:", requestId);
 
       const { error } = await supabase
         .from("requests")
@@ -122,7 +122,7 @@ export const requestApi = {
 
       if (error) throw error;
 
-      console.log("✅ Request deleted");
+      // console.log("✅ Request deleted");
     } catch (error: any) {
       console.error("❌ Error deleting request:", error.message);
       throw new Error("Failed to delete request");

@@ -1,6 +1,6 @@
 // src/hooks/useConnectionStatus.ts
 import { publicProfileApi } from "@/src/services/api/publicProfileApi";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 export type ConnectionStatus = "none" | "pending" | "connected" | "received";
 
@@ -8,6 +8,7 @@ interface UseConnectionStatusReturn {
   status: ConnectionStatus;
   loading: boolean;
   setStatus: React.Dispatch<React.SetStateAction<ConnectionStatus>>;
+  refresh: () => Promise<void>;
 }
 
 export function useConnectionStatus(
@@ -17,23 +18,39 @@ export function useConnectionStatus(
   const [status, setStatus] = useState<ConnectionStatus>("none");
   const [loading, setLoading] = useState<boolean>(true);
 
+  const id = Array.isArray(dealerId) ? dealerId[0] : dealerId;
+
+  // Manual refresh function
+  const refresh = useCallback(async () => {
+    if (!currentUserId || !id) return;
+    
+    console.log("🔄 Manually refreshing connection status...");
+    setLoading(true);
+    
+    try {
+      const newStatus = await publicProfileApi.checkConnectionStatus(currentUserId, id);
+      setStatus(newStatus);
+      console.log(`✅ Manual refresh complete: ${newStatus}`);
+    } catch (error) {
+      console.error("❌ Manual refresh failed:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [currentUserId, id]);
+
   useEffect(() => {
     // If IDs are missing, stop here
-    if (!currentUserId || !dealerId) {
+    if (!currentUserId || !id) {
       setLoading(false);
       return;
     }
 
-    const id = Array.isArray(dealerId) ? dealerId[0] : dealerId;
     setLoading(true);
-
-    // console.log(`🔌 Setting up connection status subscription for ${id}`);
 
     const unsubscribe = publicProfileApi.subscribeToConnectionStatus(
       currentUserId,
       id,
       (newStatus) => {
-        // newStatus can be 'none' | 'pending' | 'connected' | 'received'
         setStatus(newStatus as ConnectionStatus);
         setLoading(false);
       },
@@ -46,7 +63,7 @@ export function useConnectionStatus(
     return () => {
       unsubscribe();
     };
-  }, [currentUserId, dealerId]);
+  }, [currentUserId, id]);
 
-  return { status, loading, setStatus };
+  return { status, loading, setStatus, refresh };
 }

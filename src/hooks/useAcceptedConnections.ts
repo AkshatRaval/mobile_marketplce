@@ -99,7 +99,7 @@ export function useAcceptedConnections(
           filter: `status=eq.accepted`,
         },
         (payload) => {
-          console.log("🔔 Connection status changed, refreshing...", payload);
+          // console.log("🔔 Connection status changed, refreshing...", payload);
           fetchConnections();
         }
       )
