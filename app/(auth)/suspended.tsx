@@ -1,10 +1,8 @@
 // app/suspended.tsx
-import { useAuth } from "@/src/context/AuthContext";
-import { supabase } from "@/src/supabaseConfig";
+import { useSuspended } from "@/src/hooks/useSuspended";
 import { Ionicons } from "@expo/vector-icons";
-import { Redirect, useRouter } from "expo-router";
+import { Redirect } from "expo-router";
 import {
-  Linking,
   StatusBar,
   Text,
   TouchableOpacity,
@@ -12,45 +10,28 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-const SUPPORT_PHONE = "+919876543210";
-const SUPPORT_EMAIL = "support@yourcompany.com";
-
 export default function Suspended() {
-  const { user, userDoc } = useAuth();
-  const router = useRouter();
+  const {
+    user,
+    userDoc,
+    handleLogout,
+    handleWhatsApp,
+    handleCall,
+    handleEmail,
+  } = useSuspended();
 
   if (!user) return <Redirect href="/login" />;
-  
+
   // Supabase returns snake_case columns in userDoc
   if (userDoc?.onboarding_status !== "suspended") {
     return <Redirect href="/" />;
   }
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    router.replace("/login");
-  };
-
-  const handleWhatsApp = () => {
-    const msg = `Hello, my account has been suspended. Support ID: ${user.id.slice(0, 8)}`;
-    Linking.openURL(`whatsapp://send?text=${encodeURIComponent(msg)}&phone=${SUPPORT_PHONE}`);
-  };
-
-  const handleCall = () => {
-    Linking.openURL(`tel:${SUPPORT_PHONE}`);
-  };
-
-  const handleEmail = () => {
-    const subject = "Account Suspended - Support Request";
-    const body = `Support ID: ${user.id.slice(0, 8)}\n\nMy account has been suspended. Please help.`;
-    Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
-  };
-
   return (
     <SafeAreaView className="flex-1 bg-white">
       <StatusBar barStyle="dark-content" />
       <View className="flex-1 px-6 justify-center items-center">
-        
+
         <View className="items-center mb-10">
           <View className="w-24 h-24 rounded-full bg-red-50 items-center justify-center mb-6">
             <Ionicons name="ban-outline" size={48} color="#DC2626" />

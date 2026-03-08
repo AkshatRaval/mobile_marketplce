@@ -12,6 +12,7 @@ export const authApi = {
       displayName: string;
       shopName: string;
       phone: string;
+      city: string;
     }
   ) => {
     // 1. Create Auth User
@@ -20,7 +21,7 @@ export const authApi = {
       password,
       options: {
         data: {
-          full_name: userData.displayName, // Metadata for convenience
+          full_name: userData.displayName,
         },
       },
     });
@@ -31,15 +32,15 @@ export const authApi = {
     const userId = authData.user.id;
 
     // 2. Insert into 'profiles' table
-    // Matches the schema we created earlier
     const { error: profileError } = await supabase.from("profiles").insert({
       id: userId,
       email: email,
       display_name: userData.displayName,
       shop_name: userData.shopName,
       phone: userData.phone,
+      city: userData.city,
       role: "dealer",
-      onboarding_status: "submitted", // Acts as the "pending-request"
+      onboarding_status: "submitted",
       privacy_settings: "Everyone",
     });
 
@@ -50,7 +51,7 @@ export const authApi = {
 
     return authData.user;
   },
-  
+
   submitForApproval: async (userId: string) => {
     const { error } = await supabase
       .from("profiles")

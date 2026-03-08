@@ -1,4 +1,5 @@
 import { ProductCard } from "@/src/components/ProductCard";
+import { SkeletonList } from "@/src/components/Skeleton";
 import { useAuth } from "@/src/context/AuthContext";
 import { useTabRefresh } from "@/src/context/TabelRefreshContext";
 import { useAcceptedConnections } from "@/src/hooks/useAcceptedConnections";
@@ -10,6 +11,7 @@ import { FlashList, FlashListRef } from "@shopify/flash-list";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Dimensions,
   Image,
   LogBox,
@@ -64,7 +66,7 @@ export default function DealerHome() {
   const [activeTab, setActiveTab] = useState<TabType>("all");
 
   // Product Fetching
-  const { products, loading: productsLoading, refetch } = useProducts();
+  const { products, loading: productsLoading, loadingMore, refetch, loadMore } = useProducts();
 
   // Accepted Connections
   const { connectionIds, loading: connectionsLoading } = useAcceptedConnections(
@@ -241,7 +243,9 @@ export default function DealerHome() {
         </TouchableOpacity>
       </View>
       {/* FEED */}
-      {displayProducts.length === 0 && !isLoading ? (
+      {isLoading && displayProducts.length === 0 ? (
+        <SkeletonList count={3} type="feed" feedHeight={REEL_HEIGHT} />
+      ) : displayProducts.length === 0 ? (
         <View className="flex-1 justify-center items-center opacity-50 px-10">
           <Ionicons name="cube-outline" size={64} color="gray" />
           <Text className="font-bold mt-4 text-center text-gray-500">
@@ -271,6 +275,15 @@ export default function DealerHome() {
             <RefreshControl refreshing={isLoading} onRefresh={refetch} />
           }
           extraData={activeTab}
+          onEndReached={activeTab === "all" ? loadMore : undefined}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={
+            loadingMore ? (
+              <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                <ActivityIndicator size="small" color="#4F46E5" />
+              </View>
+            ) : null
+          }
         />
       )}
       {/* GLOBAL IMAGE VIEWER */}

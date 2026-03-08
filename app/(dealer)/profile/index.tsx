@@ -1,4 +1,6 @@
+import { BarcodeScannerModal } from "@/src/components/BarcodeScannerModal";
 import { SearchBar } from "@/src/components/SearchBar"; // ✅ Import SearchBar
+import { SkeletonList } from "@/src/components/Skeleton";
 import { useAuth } from "@/src/context/AuthContext";
 import { useProfileActions } from "@/src/hooks/useProfileActions";
 import { useProfileData } from "@/src/hooks/useProfileData";
@@ -96,8 +98,17 @@ export default function Profile() {
     soldPrice: "",
     buyerName: "",
     buyerPhone: "",
-    imei: "",
+    imei1: "",
+    imei2: "",
   });
+
+  // Pagination
+  const PAGE_SIZE = 20;
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+
+  // Barcode scanner states
+  const [scannerVisible, setScannerVisible] = useState(false);
+  const [scanTarget, setScanTarget] = useState<"imei1" | "imei2">("imei1");
 
   // --- SELECTED CONNECTIONS STATE ---
   const [selectedConnections, setSelectedConnections] = useState<string[]>([]);
@@ -120,6 +131,13 @@ export default function Profile() {
         item.description?.toLowerCase().includes(searchQuery.toLowerCase()),
     );
   }, [searchQuery, listings]);
+
+  // Paginated slice
+  const paginatedListings = useMemo(
+    () => filteredListings.slice(0, visibleCount),
+    [filteredListings, visibleCount]
+  );
+  const hasMore = visibleCount < filteredListings.length;
 
   useEffect(() => {
     if (profileData?.privacySettings) {
@@ -294,14 +312,24 @@ export default function Profile() {
       soldPrice: saleInfo.soldPrice,
       buyerName: saleInfo.buyerName,
       buyerPhone: saleInfo.buyerPhone,
-      imei: saleInfo.imei,
+      imei: saleInfo.imei1,
+      imei2: saleInfo.imei2,
     });
     if (success) {
       setIsSalesLogModalVisible(false);
       setIsMenuVisible(false);
-      setSaleInfo({ soldPrice: "", buyerName: "", buyerPhone: "", imei: "" });
+      setSaleInfo({ soldPrice: "", buyerName: "", buyerPhone: "", imei1: "", imei2: "" });
       refetch();
     }
+  };
+
+  const openScanner = (target: "imei1" | "imei2") => {
+    setScanTarget(target);
+    setScannerVisible(true);
+  };
+
+  const handleBarcodeScan = (value: string) => {
+    setSaleInfo((prev) => ({ ...prev, [scanTarget]: value }));
   };
 
   const handlePrivacyChange = async (option: string) => {
@@ -320,11 +348,15 @@ export default function Profile() {
     setSearchQuery("");
   }, []);
 
+  const TILE_GAP = 1.5;
+  const TILE_SIZE = (SCREEN_WIDTH - TILE_GAP * 2) / 3;
+
   // Memoize the render item callback - NAVIGATE TO NEW PAGE INSTEAD OF MODAL
   const renderItem = useCallback(
     ({ item, index }: any) => {
       const imageUri = item.images?.[0] || item.image || "";
       const price = item.price;
+
       return (
         <TouchableOpacity
           onPress={() => {
@@ -333,58 +365,41 @@ export default function Profile() {
               params: {
                 productId: item.id,
                 initialIndex: index.toString(),
+                from: "profile",
               },
             });
           }}
           onLongPress={(e) => handleLongPress(e, item)}
           delayLongPress={300}
-          activeOpacity={0.9}
+          activeOpacity={0.85}
           style={{
-            width: GRID_ITEM_WIDTH,
-            height: GRID_ITEM_WIDTH,
-            padding: 1.5,
+            width: TILE_SIZE,
+            height: TILE_SIZE,
+            margin: TILE_GAP / 2,
+            overflow: "hidden",
+            backgroundColor: "#F3F4F6",
           }}
         >
+          <Image
+            source={{ uri: imageUri || "https://via.placeholder.com/150" }}
+            style={{ width: "100%", height: "100%" }}
+            resizeMode="cover"
+          />
+          {/* Price pill */}
           <View
             style={{
-              flex: 1,
-              borderRadius: 6,
-              overflow: "hidden",
-              backgroundColor: "#F3F4F6",
+              position: "absolute",
+              bottom: 5,
+              left: 5,
+              backgroundColor: "rgba(0,0,0,0.55)",
+              paddingHorizontal: 5,
+              paddingVertical: 2,
+              borderRadius: 5,
             }}
           >
-            <Image
-              source={{
-                uri: imageUri || "https://via.placeholder.com/150",
-              }}
-              style={{ width: "100%", height: "100%" }}
-              resizeMode="cover"
-            />
-            {/* Price badge overlay */}
-            {price && (
-              <View
-                style={{
-                  position: "absolute",
-                  bottom: 4,
-                  right: 4,
-                  backgroundColor: "rgba(0,0,0,0.65)",
-                  paddingHorizontal: 6,
-                  paddingVertical: 2,
-                  borderRadius: 6,
-                }}
-              >
-                <Text
-                  style={{
-                    color: "white",
-                    fontSize: 9,
-                    fontWeight: "700",
-                    letterSpacing: -0.2,
-                  }}
-                >
-                  ₹{parseInt(price).toLocaleString()}
-                </Text>
-              </View>
-            )}
+            <Text style={{ color: "white", fontSize: 9, fontWeight: "700" }}>
+              ₹{parseInt(price).toLocaleString()}
+            </Text>
           </View>
         </TouchableOpacity>
       );
@@ -523,7 +538,7 @@ export default function Profile() {
       <StatusBar barStyle="dark-content" />
 
       <FlashList
-        data={filteredListings}
+        data={paginatedListings}
         keyExtractor={(item) => item.id}
         ListHeaderComponent={ListHeader}
         numColumns={3}
@@ -534,16 +549,52 @@ export default function Profile() {
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={onRefresh}
+            onRefresh={async () => {
+              setVisibleCount(PAGE_SIZE);
+              await onRefresh();
+            }}
             tintColor="#4F46E5"
           />
         }
         renderItem={renderItem}
         ListEmptyComponent={
-          <View className="flex-1 items-center justify-center py-20 opacity-30">
-            <Ionicons name="search-outline" size={64} color="gray" />
-            <Text className="font-bold mt-4">No products found</Text>
-          </View>
+          loading ? (
+            <View className="px-4 pt-2">
+              <SkeletonList count={4} type="horizontal" />
+            </View>
+          ) : (
+            <View className="flex-1 items-center justify-center py-20 opacity-30">
+              <Ionicons name="search-outline" size={64} color="gray" />
+              <Text className="font-bold mt-4">No products found</Text>
+            </View>
+          )
+        }
+        ListFooterComponent={
+          hasMore ? (
+            <Pressable
+              onPress={() => setVisibleCount((c) => c + PAGE_SIZE)}
+              style={{
+                alignItems: "center",
+                justifyContent: "center",
+                paddingVertical: 20,
+              }}
+            >
+              <View
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 22,
+                  backgroundColor: "#EEF2FF",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderWidth: 1.5,
+                  borderColor: "#C7D2FE",
+                }}
+              >
+                <Ionicons name="chevron-down" size={22} color="#4F46E5" />
+              </View>
+            </Pressable>
+          ) : null
         }
       />
 
@@ -653,8 +704,6 @@ export default function Profile() {
         </View>
       </Modal>
 
-      {/* REST OF THE MODALS... (keeping existing code) */}
-      {/* 1. FLOATING DROPDOWN MENU */}
       <Modal visible={isMenuVisible} transparent animationType="fade">
         <Pressable className="flex-1" onPress={() => setIsMenuVisible(false)}>
           <View
@@ -744,42 +793,91 @@ export default function Profile() {
       <Modal visible={isSalesLogModalVisible} transparent animationType="slide">
         <View className="flex-1 bg-black/60 justify-end">
           <View className="bg-white rounded-t-[48px] p-8 pb-10">
+            <View className="w-12 h-1 bg-gray-200 rounded-full self-center mb-4" />
             <Text className="text-2xl font-black mb-6">Sale Information</Text>
             <ScrollView
               showsVerticalScrollIndicator={false}
-              className="space-y-4"
+              keyboardShouldPersistTaps="handled"
             >
-              <TextInput
-                placeholder="Final Sale Price (₹)"
-                keyboardType="numeric"
-                className="bg-gray-100 p-5 rounded-2xl font-bold"
-                value={saleInfo.soldPrice}
-                onChangeText={(t) => setSaleInfo({ ...saleInfo, soldPrice: t })}
-              />
+              {/* Final Sale Price */}
+              <View className="bg-gray-100 rounded-2xl flex-row items-center mb-3 overflow-hidden">
+                <View className="px-4 py-4 bg-gray-200">
+                  <Text className="font-black text-gray-600">₹</Text>
+                </View>
+                <TextInput
+                  placeholder="Final Sale Price (required)"
+                  keyboardType="numeric"
+                  className="flex-1 p-4 font-bold"
+                  value={saleInfo.soldPrice}
+                  onChangeText={(t) => setSaleInfo({ ...saleInfo, soldPrice: t })}
+                  placeholderTextColor="#9CA3AF"
+                />
+              </View>
+
+              {/* Customer Name */}
               <TextInput
                 placeholder="Customer Name"
-                className="bg-gray-100 p-5 rounded-2xl font-bold"
+                className="bg-gray-100 p-4 rounded-2xl font-bold mb-3"
                 value={saleInfo.buyerName}
                 onChangeText={(t) => setSaleInfo({ ...saleInfo, buyerName: t })}
+                placeholderTextColor="#9CA3AF"
               />
+
+              {/* Customer Phone */}
               <TextInput
                 placeholder="Customer Phone"
                 keyboardType="phone-pad"
-                className="bg-gray-100 p-5 rounded-2xl font-bold"
+                className="bg-gray-100 p-4 rounded-2xl font-bold mb-3"
                 value={saleInfo.buyerPhone}
-                onChangeText={(t) =>
-                  setSaleInfo({ ...saleInfo, buyerPhone: t })
-                }
+                onChangeText={(t) => setSaleInfo({ ...saleInfo, buyerPhone: t })}
+                placeholderTextColor="#9CA3AF"
               />
-              <TextInput
-                placeholder="IMEI (Optional)"
-                className="bg-gray-100 p-5 rounded-2xl font-bold"
-                value={saleInfo.imei}
-                onChangeText={(t) => setSaleInfo({ ...saleInfo, imei: t })}
-              />
+
+              {/* IMEI 1 (required) */}
+              <Text className="text-xs font-bold text-gray-500 uppercase tracking-wide ml-1 mb-1">
+                IMEI 1 (required)
+              </Text>
+              <View className="flex-row items-center bg-gray-100 rounded-2xl mb-3 overflow-hidden">
+                <TextInput
+                  placeholder="Enter or scan IMEI 1"
+                  className="flex-1 p-4 font-bold"
+                  value={saleInfo.imei1}
+                  onChangeText={(t) => setSaleInfo({ ...saleInfo, imei1: t })}
+                  placeholderTextColor="#9CA3AF"
+                  keyboardType="default"
+                />
+                <TouchableOpacity
+                  onPress={() => openScanner("imei1")}
+                  className="px-4 py-3 bg-indigo-600 items-center justify-center"
+                >
+                  <Ionicons name="barcode-outline" size={22} color="white" />
+                </TouchableOpacity>
+              </View>
+
+              {/* IMEI 2 (optional) */}
+              <Text className="text-xs font-bold text-gray-500 uppercase tracking-wide ml-1 mb-1">
+                IMEI 2 (optional)
+              </Text>
+              <View className="flex-row items-center bg-gray-100 rounded-2xl mb-6 overflow-hidden">
+                <TextInput
+                  placeholder="Enter or scan IMEI 2"
+                  className="flex-1 p-4 font-bold"
+                  value={saleInfo.imei2}
+                  onChangeText={(t) => setSaleInfo({ ...saleInfo, imei2: t })}
+                  placeholderTextColor="#9CA3AF"
+                  keyboardType="default"
+                />
+                <TouchableOpacity
+                  onPress={() => openScanner("imei2")}
+                  className="px-4 py-3 bg-gray-400 items-center justify-center"
+                >
+                  <Ionicons name="barcode-outline" size={22} color="white" />
+                </TouchableOpacity>
+              </View>
+
               <TouchableOpacity
                 onPress={submitSalesLog}
-                className="bg-black py-5 rounded-2xl items-center mt-6"
+                className="bg-black py-5 rounded-2xl items-center mt-2"
               >
                 <Text className="text-white font-black">Complete Record</Text>
               </TouchableOpacity>
@@ -793,6 +891,14 @@ export default function Profile() {
           </View>
         </View>
       </Modal>
+
+      {/* BARCODE SCANNER */}
+      <BarcodeScannerModal
+        visible={scannerVisible}
+        onScan={handleBarcodeScan}
+        onClose={() => setScannerVisible(false)}
+        label={scanTarget === "imei1" ? "Scan IMEI 1" : "Scan IMEI 2"}
+      />
 
       {/* 4. DRAWER */}
       <Modal visible={isDrawerVisible} transparent animationType="none">

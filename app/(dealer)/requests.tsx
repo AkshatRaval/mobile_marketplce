@@ -1,3 +1,4 @@
+import { SkeletonList } from "@/src/components/Skeleton";
 import { useAuth } from "@/src/context/AuthContext";
 import { useMarketRequests } from "@/src/hooks/useMarketRequests";
 import { useRequestForm } from "@/src/hooks/useRequestForm";
@@ -217,9 +218,7 @@ export default function RequestsPage() {
 
       {/* CONTENT - Optimized List Structure */}
       {loading && !refreshing ? (
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator color="#4F46E5" />
-        </View>
+        <SkeletonList count={4} type="horizontal" />
       ) : (
         <FlashList
           data={requests}

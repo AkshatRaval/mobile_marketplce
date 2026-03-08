@@ -1,13 +1,9 @@
 // app/onboarding.tsx
-import { useAuth } from "@/src/context/AuthContext";
-import { authApi } from "@/src/services/api/authApi";
+import { useOnboarding } from "@/src/hooks/useOnboarding";
 import { Ionicons } from "@expo/vector-icons";
 import { Redirect, useRouter } from "expo-router";
-import { useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
-  Linking,
   StatusBar,
   Text,
   TouchableOpacity,
@@ -15,59 +11,27 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-const SUPPORT_PHONE = "+919876543210";
-const SUPPORT_EMAIL = "support@yourcompany.com";
-const WHATSAPP_MSG = "Hello, I am waiting for my account approval. My Shop Name is: ";
-
 export default function Onboarding() {
-  const { user, userDoc, refreshProfile } = useAuth(); // ✅ Get refresh function
   const router = useRouter();
-  const [submitting, setSubmitting] = useState(false);
+  const {
+    user,
+    userDoc,
+    isSubmitted,
+    submitting,
+    submitForApproval,
+    refreshProfile,
+    handleWhatsApp,
+    handleCall,
+    handleEmail,
+  } = useOnboarding();
 
   // Protected Route Logic
   if (!user) return <Redirect href="/login" />;
-  
+
   // If approved, kick them to the main app
   if (userDoc?.onboarding_status === "approved") {
     return <Redirect href="/" />;
   }
-
-  const submitForApproval = async () => {
-    setSubmitting(true);
-    try {
-      // 1. Update Supabase
-      await authApi.submitForApproval(user.id);
-      
-      // 2. Force Context Refresh so UI updates to "Verification in Progress"
-      await refreshProfile(); 
-      
-      Alert.alert("Success", "Request submitted successfully.");
-    } catch (error) {
-      console.error(error);
-      Alert.alert("Error", "Could not submit request. Try again.");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleWhatsApp = () => {
-    const shopName = userDoc?.shop_name || "Unknown";
-    let url = `whatsapp://send?text=${WHATSAPP_MSG}${shopName}&phone=${SUPPORT_PHONE}`;
-    Linking.openURL(url).catch(() => {
-      Alert.alert("Error", "WhatsApp is not installed on this device");
-    });
-  };
-
-  const handleCall = () => {
-    Linking.openURL(`tel:${SUPPORT_PHONE}`);
-  };
-
-  const handleEmail = () => {
-    Linking.openURL(`mailto:${SUPPORT_EMAIL}`);
-  };
-
-  // Check status (snake_case from Supabase)
-  const isSubmitted = userDoc?.onboarding_status === "submitted";
 
   return (
     <SafeAreaView className="flex-1 bg-white">
@@ -148,9 +112,9 @@ export default function Onboarding() {
 
         {/* Added Manual Refresh Button for UX */}
         {isSubmitted && (
-             <TouchableOpacity onPress={refreshProfile} className="mt-8">
-                <Text className="text-indigo-600 font-bold">Check Status Again</Text>
-             </TouchableOpacity>
+          <TouchableOpacity onPress={refreshProfile} className="mt-8">
+            <Text className="text-indigo-600 font-bold">Check Status Again</Text>
+          </TouchableOpacity>
         )}
 
         <View className="mt-4 pt-4">

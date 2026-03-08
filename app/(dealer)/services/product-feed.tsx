@@ -1,94 +1,133 @@
 import { FeedProductCard } from "@/src/components/FeedProductCard";
 import { useAuth } from "@/src/context/AuthContext";
 import { useProfileData } from "@/src/hooks/useProfileData";
-import { FlashList, FlashListRef } from "@shopify/flash-list";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Dimensions, View } from "react-native";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  BackHandler,
+  Dimensions,
+  FlatList,
+  View,
+} from "react-native";
 
-const { height: SCREEN_HEIGHT } = Dimensions.get("window");
+// Module-level constant — never changes, so no setState/re-render needed.
+const ITEM_H = Dimensions.get("window").height;
 
 export default function ProductFeed() {
   const { user } = useAuth();
   const router = useRouter();
-  const params = useLocalSearchParams();
-  const { productId, initialIndex } = params;
+  const { productId, initialIndex, from } = useLocalSearchParams();
 
   const { listings } = useProfileData(user?.id);
-  const [reelHeight, setReelHeight] = useState(SCREEN_HEIGHT);
-  const flatListRef = useRef<FlashListRef<any>>(null);
-  const hasScrolled = useRef(false);
+  const [displayListings, setDisplayListings] = useState<any[]>([]);
+  const initialized = useRef(false);
 
-  // Parse initial index properly
-  const startIndex = initialIndex ? parseInt(initialIndex as string, 10) : 0;
-
-  // Reset scroll flag when params change (new product opened)
+  // Load once — subsequent refetches must not reset scroll position.
   useEffect(() => {
-    hasScrolled.current = false;
-  }, [productId, initialIndex]);
-
-  // Scroll to initial index ONCE when component mounts or data loads
-  useEffect(() => {
-    if (
-      listings.length > 0 &&
-      flatListRef.current &&
-      !hasScrolled.current &&
-      startIndex >= 0 &&
-      startIndex < listings.length
-    ) {
-      // Small delay to ensure FlashList is ready
-      const timer = setTimeout(() => {
-        try {
-          flatListRef.current?.scrollToIndex({
-            index: startIndex,
-            animated: false,
-          });
-          hasScrolled.current = true;
-        } catch (error) {
-          console.log("Scroll to index failed:", error);
-        }
-      }, 100);
-
-      return () => clearTimeout(timer);
+    if (!initialized.current && listings.length > 0) {
+      setDisplayListings(listings);
+      initialized.current = true;
     }
-  }, [listings.length, startIndex]);
+  }, [listings]);
 
-  if (listings.length === 0) {
+  const startIndex = useMemo(() => {
+    if (displayListings.length === 0) return 0;
+    if (productId) {
+      const idx = displayListings.findIndex((l) => l.id === productId);
+      if (idx >= 0) return idx;
+    }
+    return initialIndex ? Math.max(0, parseInt(initialIndex as string, 10)) : 0;
+  }, [productId, displayListings, initialIndex]);
+
+  const handleDeleted = useCallback((deletedId: string) => {
+    setDisplayListings((prev) => prev.filter((l) => l.id !== deletedId));
+  }, []);
+
+  const handleUpdated = useCallback((updatedId: string, updates: any) => {
+    setDisplayListings((prev) =>
+      prev.map((l) =>
+        l.id === updatedId
+          ? { ...l, ...updates, price: Number(updates.price) || l.price }
+          : l
+      )
+    );
+  }, []);
+
+  const handleClose = useCallback(() => {
+    if (from === "profile") {
+      router.navigate("/(dealer)/profile" as any);
+    } else {
+      router.navigate("/(dealer)/home" as any);
+    }
+  }, [from, router]);
+
+  useEffect(() => {
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      handleClose();
+      return true;
+    });
+    return () => sub.remove();
+  }, [handleClose]);
+
+  // getItemLayout tells FlatList every item's exact size & offset upfront.
+  // This is what makes initialScrollIndex work instantly with NO flash/bleed.
+  const getItemLayout = useCallback(
+    (_: any, index: number) => ({
+      length: ITEM_H,
+      offset: ITEM_H * index,
+      index,
+    }),
+    []
+  );
+
+  const renderItem = useCallback(
+    ({ item }: { item: any }) => (
+      <FeedProductCard
+        item={item}
+        height={ITEM_H}
+        onClose={handleClose}
+        onDeleted={handleDeleted}
+        onUpdated={handleUpdated}
+      />
+    ),
+    [handleClose, handleDeleted, handleUpdated]
+  );
+
+  if (displayListings.length === 0) {
     return (
-      <View className="flex-1 bg-black items-center justify-center">
-        <ActivityIndicator size="large" color="white" />
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: "#0A0A0A",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <ActivityIndicator size="large" color="#ffffff" />
       </View>
     );
   }
 
   return (
-    <View
-      className="flex-1 bg-black"
-      onLayout={(e) => setReelHeight(e.nativeEvent.layout.height)}
-    >
-      <FlashList
-        ref={flatListRef}
-        data={listings}
+    <View style={{ flex: 1, backgroundColor: "#0A0A0A" }}>
+      <FlatList
+        data={displayListings}
         keyExtractor={(item) => item.id}
+        renderItem={renderItem}
         pagingEnabled
-        snapToInterval={reelHeight}
-        decelerationRate="fast"
         showsVerticalScrollIndicator={false}
+        decelerationRate="fast"
+        // getItemLayout is the KEY — pre-calculated offsets mean
+        // initialScrollIndex jumps to the right item instantly,
+        // with zero paint of item 0 or any adjacent item.
+        getItemLayout={getItemLayout}
         initialScrollIndex={startIndex}
-        viewabilityConfig={{
-          itemVisiblePercentThreshold: 50,
-        }}
-        renderItem={({ item }) => (
-          <FeedProductCard
-            item={item}
-            height={reelHeight}
-            onClose={() => router.back()}
-            onPressOptions={() => {
-              // Handle options menu if needed
-              // You can add the same menu functionality here
-            }}
-          />
-        )}
+        // Render a small window around the current item only.
+        windowSize={3}
+        maxToRenderPerBatch={2}
+        initialNumToRender={1}
+        removeClippedSubviews
       />
     </View>
   );

@@ -1,10 +1,9 @@
 import { useAuth } from "@/src/context/AuthContext";
 import type { Product } from "@/src/types";
-import { Ionicons } from "@expo/vector-icons";
-import { FlashList } from "@shopify/flash-list";
+import { FontAwesome5, Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   Dimensions,
   Image,
@@ -12,550 +11,645 @@ import {
   Modal,
   Platform,
   Pressable,
+  ScrollView,
   Share,
+  StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
-let ImageView: any = null;
+const { width: SW, height: SH } = Dimensions.get("window");
 
+let ImageView: any = null;
 if (Platform.OS !== "web") {
   ImageView = require("react-native-image-viewing").default;
 }
 
-// 📐 Card dimensions
-export const CARD_HEIGHT = 164;
-const IMAGE_WIDTH = 144;
+export const CARD_HEIGHT = 160;
+const IMG_W = 140;
+const THUMB_W = 100;
+const THUMB_H = 80;
 
-interface SearchProductCardProps {
-  item: Product;
+function cleanPhoneForWA(raw: string): string {
+  let digits = raw.replace(/\D/g, "");
+  if (digits.startsWith("0")) digits = "91" + digits.slice(1);
+  if (digits.length === 10) digits = "91" + digits;
+  return digits;
 }
 
-export const SearchProductCard: React.FC<SearchProductCardProps> = ({
-  item,
-}) => {
+interface Props { item: Product }
+
+const SearchProductCardInner: React.FC<Props> = ({ item }) => {
   const router = useRouter();
   const { user } = useAuth();
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerIdx, setViewerIdx] = useState(0);
+  const [modalVisible, setModalVisible] = useState(false);
 
-  const [isViewerVisible, setIsViewerVisible] = useState(false);
-  const [activeIndex, setActiveIndex] = useState(0);
-  const [menuOpen, setMenuOpen] = useState(false);
+  // Stable derived values
+  const images = useMemo(
+    () => (item.images?.length ? item.images : [item.image || ""]),
+    [item.images, item.image]
+  );
+  const viewerImgs = useMemo(() => images.map((uri) => ({ uri })), [images]);
+  const desc: string = (item as any).description || "";
+  const dealerName = item.dealerName || "Dealer";
+  const avatar = useMemo(
+    () =>
+      item.dealerAvatar ||
+      item.dealerPhoto ||
+      `https://ui-avatars.com/api/?name=${encodeURIComponent(dealerName)}&background=6366f1&color=fff&bold=true`,
+    [item.dealerAvatar, item.dealerPhoto, dealerName]
+  );
+  const priceStr = useMemo(
+    () => `₹${Number(item.price).toLocaleString("en-IN")}`,
+    [item.price]
+  );
 
-  // 🖼️ Safe Image Array
-  const images =
-    item.images && item.images.length > 0 ? item.images : [item.image || ""];
-  const viewerImages = images.map((uri) => ({ uri }));
+  // Stable callbacks
+  const openModal = useCallback(() => setModalVisible(true), []);
+  const closeModal = useCallback(() => setModalVisible(false), []);
+  const closeViewer = useCallback(() => setViewerOpen(false), []);
 
-  // 🔗 WhatsApp Action
-  const openWhatsApp = () => {
-    const phoneNumber = item.dealerPhone;
-    if (!phoneNumber) {
-      alert("Dealer number not available.");
-      return;
-    }
-    const message = `Hi, I'm interested in: ${item.name} - ₹${item.price}`;
-    const url = `whatsapp://send?text=${encodeURIComponent(message)}&phone=${phoneNumber}`;
-    Linking.openURL(url).catch(() => alert("Could not open WhatsApp"));
-  };
+  const openViewer = useCallback((idx: number) => {
+    setViewerIdx(idx);
+    setViewerOpen(true);
+  }, []);
 
-  // 🔗 Profile Action
-  const goToProfile = () => {
+  const openWhatsApp = useCallback(async () => {
+    const raw = item.dealerPhone;
+    if (!raw) { alert("Dealer's phone number is not available."); return; }
+    const phone = cleanPhoneForWA(raw);
+    const msg = encodeURIComponent(
+      `Hi! I'm interested in: *${item.name}* — ${priceStr}`
+    );
+    const waDeep = `whatsapp://send?phone=${phone}&text=${msg}`;
+    const waWeb = `https://wa.me/${phone}?text=${msg}`;
+    const canOpen = await Linking.canOpenURL(waDeep).catch(() => false);
+    Linking.openURL(canOpen ? waDeep : waWeb).catch(() => alert("Could not open WhatsApp"));
+  }, [item.dealerPhone, item.name, priceStr]);
+
+  const onShare = useCallback(() =>
+    Share.share({
+      message: `Check out *${item.name}* for ${priceStr} on Go Dealers!`,
+    }).catch(() => { }), [item.name, priceStr]);
+
+  const goToProfile = useCallback(() => {
     const uid = item.userId || item.dealerId || (item as any).owner_id;
     if (!uid) return;
-
-    const currentUserId = user?.id || (user as any)?.uid;
-
-    if (uid === currentUserId) {
-      router.push("/(dealer)/profile" as any);
-    } else {
-      router.push(`/(dealer)/profile/${uid}` as any);
-    }
-  };
-
-  // ⋮ Menu actions
-  const menuActions = [
-    {
-      label: "WhatsApp",
-      icon: "logo-whatsapp" as const,
-      color: "#25D366",
-      onPress: openWhatsApp,
-    },
-    {
-      label: "View Profile",
-      icon: "person-circle-outline" as const,
-      color: "#4F46E5",
-      onPress: goToProfile,
-    },
-    {
-      label: "Share",
-      icon: "share-social-outline" as const,
-      color: "#F59E0B",
-      onPress: () => {
-        Share.share({
-          message: `Check out ${item.name} for ₹${Number(item.price).toLocaleString()} on Mobile Marketplace!`,
-        });
-      },
-    },
-  ];
-
-  // 👤 Dealer Data
-  const dealerName = item.dealerName || "Dealer";
-  const dealerAvatar =
-    item.dealerAvatar ||
-    item.dealerPhoto ||
-    `https://ui-avatars.com/api/?name=${dealerName}&background=random&color=fff&background=000`;
+    const me = user?.id || (user as any)?.uid;
+    closeModal();
+    setTimeout(() => {
+      router.push(
+        (uid === me ? "/(dealer)/profile" : `/(dealer)/profile/${uid}`) as any
+      );
+    }, 350);
+  }, [item.userId, item.dealerId, user, router, closeModal]);
 
   return (
-    <View
-      style={{ width: SCREEN_WIDTH, paddingHorizontal: 14, marginBottom: 14 }}
-    >
-      {/* 📦 CARD CONTAINER */}
-      <View
-        style={{
-          height: CARD_HEIGHT,
-          flexDirection: "row",
-          backgroundColor: "white",
-          borderRadius: 20,
-          overflow: "hidden",
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.08,
-          shadowRadius: 12,
-          elevation: 4,
-        }}
+    <>
+      {/* ── Card ── */}
+      <TouchableOpacity
+        style={styles.wrapper}
+        activeOpacity={0.88}
+        onPress={openModal}
       >
-        {/* 👈 LEFT: IMAGE AREA */}
-        <View
-          style={{
-            width: IMAGE_WIDTH,
-            height: "100%",
-            backgroundColor: "#F0F0F0",
-            position: "relative",
-          }}
-        >
-          <FlashList
-            data={images}
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            keyExtractor={(_: string, i: number) => `img-${item.id}-${i}`}
-            renderItem={({ item: imgUri }: { item: string }) => (
-              <Pressable onPress={() => setIsViewerVisible(true)}>
-                {imgUri ? (
-                  <Image
-                    source={{ uri: imgUri }}
-                    style={{ width: IMAGE_WIDTH, height: CARD_HEIGHT }}
-                    resizeMode="cover"
-                  />
-                ) : (
-                  <View
-                    style={{
-                      width: IMAGE_WIDTH,
-                      height: CARD_HEIGHT,
-                      alignItems: "center",
-                      justifyContent: "center",
-                      backgroundColor: "#E5E7EB",
-                    }}
-                  >
-                    <Ionicons name="image" size={32} color="#D1D5DB" />
-                  </View>
-                )}
-              </Pressable>
-            )}
-            onMomentumScrollEnd={(e: any) => {
-              const index = Math.round(
-                e.nativeEvent.contentOffset.x / IMAGE_WIDTH
-              );
-              setActiveIndex(index);
-            }}
-          />
-
-          {/* Image count badge */}
-          {images.length > 1 && (
-            <View
-              style={{
-                position: "absolute",
-                top: 8,
-                right: 8,
-                backgroundColor: "rgba(0,0,0,0.55)",
-                paddingHorizontal: 7,
-                paddingVertical: 3,
-                borderRadius: 10,
-                flexDirection: "row",
-                alignItems: "center",
-              }}
-            >
-              <Ionicons name="images-outline" size={10} color="white" />
-              <Text
-                style={{
-                  color: "white",
-                  fontSize: 10,
-                  fontWeight: "700",
-                  marginLeft: 3,
-                }}
-              >
-                {images.length}
-              </Text>
-            </View>
-          )}
-
-          {/* Gradient overlay at bottom of image */}
-          <LinearGradient
-            pointerEvents="none"
-            colors={["transparent", "rgba(0,0,0,0.3)"]}
-            style={{
-              position: "absolute",
-              left: 0,
-              right: 0,
-              bottom: 0,
-              height: 40,
-            }}
-          />
-
-          {/* Dots */}
-          {images.length > 1 && (
-            <View
-              style={{
-                position: "absolute",
-                bottom: 8,
-                width: "100%",
-                flexDirection: "row",
-                justifyContent: "center",
-                gap: 4,
-              }}
-            >
-              {images.map((_: string, i: number) => (
-                <View
-                  key={i}
-                  style={{
-                    width: i === activeIndex ? 14 : 5,
-                    height: 5,
-                    borderRadius: 3,
-                    backgroundColor:
-                      i === activeIndex
-                        ? "white"
-                        : "rgba(255,255,255,0.45)",
-                  }}
-                />
-              ))}
-            </View>
-          )}
-        </View>
-
-        {/* 👉 RIGHT: DETAILS AREA */}
-        <View style={{ flex: 1, padding: 14, justifyContent: "space-between" }}>
-          {/* Top Section */}
-          <View>
-            <View
-              style={{
-                flexDirection: "row",
-                justifyContent: "space-between",
-                alignItems: "flex-start",
-              }}
-            >
-              <Text
-                numberOfLines={2}
-                style={{
-                  color: "#111827",
-                  fontWeight: "800",
-                  fontSize: 14,
-                  lineHeight: 19,
-                  flex: 1,
-                  letterSpacing: -0.2,
-                }}
-              >
-                {item.name}
-              </Text>
-
-              {/* 3-Dots Menu */}
-              <TouchableOpacity
-                onPress={() => setMenuOpen(true)}
-                style={{ padding: 4, marginRight: -6, marginTop: -4 }}
-              >
-                <Ionicons name="ellipsis-vertical" size={16} color="#9CA3AF" />
-              </TouchableOpacity>
-            </View>
-
-            {/* Price */}
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                marginTop: 6,
-              }}
-            >
-              <Text
-                style={{
-                  color: "#059669",
-                  fontWeight: "900",
-                  fontSize: 17,
-                  letterSpacing: -0.4,
-                }}
-              >
-                ₹{Number(item.price).toLocaleString()}
-              </Text>
-            </View>
-          </View>
-
-          {/* Middle: Dealer Row */}
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              marginTop: 4,
-            }}
-          >
-            <Image
-              source={{ uri: dealerAvatar }}
-              style={{
-                width: 18,
-                height: 18,
-                borderRadius: 9,
-                borderWidth: 1,
-                borderColor: "#E5E7EB",
-              }}
-            />
-            <Text
-              numberOfLines={1}
-              style={{
-                fontSize: 11,
-                color: "#6B7280",
-                marginLeft: 6,
-                fontWeight: "500",
-                flex: 1,
-              }}
-            >
-              {dealerName}
-            </Text>
-            {item.city && (
-              <>
-                <View
-                  style={{
-                    width: 3,
-                    height: 3,
-                    borderRadius: 1.5,
-                    backgroundColor: "#D1D5DB",
-                    marginHorizontal: 5,
-                  }}
-                />
-                <Text style={{ fontSize: 11, color: "#9CA3AF", fontWeight: "500" }}>
-                  {item.city}
-                </Text>
-              </>
-            )}
-          </View>
-
-          {/* Bottom Action Row */}
-          <View
-            style={{
-              flexDirection: "row",
-              gap: 8,
-              marginTop: "auto",
-              paddingTop: 10,
-            }}
-          >
-            {/* Primary: Chat */}
-            <TouchableOpacity
-              onPress={openWhatsApp}
-              activeOpacity={0.85}
-              style={{
-                flex: 1,
-                backgroundColor: "#111827",
-                height: 38,
-                borderRadius: 12,
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "center",
-                shadowColor: "#111827",
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.2,
-                shadowRadius: 4,
-                elevation: 3,
-              }}
-            >
-              <Ionicons name="chatbubble-ellipses" size={16} color="white" />
-              <Text
-                style={{
-                  color: "white",
-                  fontWeight: "700",
-                  fontSize: 13,
-                  marginLeft: 6,
-                  letterSpacing: 0.3,
-                }}
-              >
-                Chat
-              </Text>
-            </TouchableOpacity>
-
-            {/* Secondary: Profile */}
-            <TouchableOpacity
-              onPress={goToProfile}
-              activeOpacity={0.8}
-              style={{
-                width: 38,
-                height: 38,
-                backgroundColor: "#F3F4F6",
-                borderRadius: 12,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Ionicons name="person-outline" size={18} color="#374151" />
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-
-      {/* 🖼️ Full Screen Viewer */}
-      {ImageView && (
-        <ImageView
-          images={viewerImages}
-          imageIndex={activeIndex}
-          visible={isViewerVisible}
-          onRequestClose={() => setIsViewerVisible(false)}
-        />
-      )}
-
-      {/* ⋮ Custom Dropdown Menu */}
-      <Modal
-        visible={menuOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setMenuOpen(false)}
-      >
-        <Pressable
-          onPress={() => setMenuOpen(false)}
-          style={{
-            flex: 1,
-            backgroundColor: "rgba(0,0,0,0.35)",
-            justifyContent: "center",
-            alignItems: "center",
-            paddingHorizontal: 40,
-          }}
-        >
-          <Pressable
-            onPress={(e) => e.stopPropagation()}
-            style={{
-              width: "100%",
-              backgroundColor: "white",
-              borderRadius: 20,
-              paddingVertical: 8,
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 8 },
-              shadowOpacity: 0.15,
-              shadowRadius: 24,
-              elevation: 10,
-            }}
-          >
-            {/* Menu Header */}
-            <View
-              style={{
-                paddingHorizontal: 20,
-                paddingTop: 12,
-                paddingBottom: 14,
-                borderBottomWidth: 1,
-                borderBottomColor: "#F3F4F6",
-              }}
-            >
-              <Text
-                numberOfLines={1}
-                style={{
-                  fontWeight: "800",
-                  fontSize: 15,
-                  color: "#111827",
-                  letterSpacing: -0.3,
-                }}
-              >
-                {item.name}
-              </Text>
-              <Text
-                style={{
-                  fontSize: 13,
-                  color: "#059669",
-                  fontWeight: "700",
-                  marginTop: 2,
-                }}
-              >
-                ₹{Number(item.price).toLocaleString()}
-              </Text>
-            </View>
-
-            {/* Menu Items */}
-            {menuActions.map((action, i) => (
-              <TouchableOpacity
-                key={i}
-                activeOpacity={0.7}
-                onPress={() => {
-                  setMenuOpen(false);
-                  setTimeout(() => action.onPress(), 200);
-                }}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  paddingHorizontal: 20,
-                  paddingVertical: 14,
-                }}
-              >
-                <View
-                  style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 12,
-                    backgroundColor: action.color + "15",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <Ionicons
-                    name={action.icon}
-                    size={20}
-                    color={action.color}
-                  />
+        <View style={styles.card}>
+          <View style={styles.row}>
+            {/* Thumbnail */}
+            <View style={styles.imgWrap}>
+              {images[0] ? (
+                <Image source={{ uri: images[0] }} style={styles.img} resizeMode="cover" />
+              ) : (
+                <View style={styles.imgPlaceholder}>
+                  <Ionicons name="image-outline" size={28} color="#D1D5DB" />
                 </View>
-                <Text
-                  style={{
-                    marginLeft: 14,
-                    fontSize: 15,
-                    fontWeight: "600",
-                    color: "#1F2937",
-                  }}
-                >
-                  {action.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
+              )}
+              {images.length > 1 && (
+                <View style={styles.badge}>
+                  <Ionicons name="images-outline" size={9} color="white" />
+                  <Text style={styles.badgeText}>{images.length}</Text>
+                </View>
+              )}
+              <LinearGradient
+                pointerEvents="none"
+                colors={["transparent", "rgba(0,0,0,0.28)"]}
+                style={styles.imgGrad}
+              />
+            </View>
 
-            {/* Cancel */}
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={() => setMenuOpen(false)}
-              style={{
-                marginTop: 4,
-                marginHorizontal: 16,
-                marginBottom: 10,
-                paddingVertical: 12,
-                borderRadius: 14,
-                backgroundColor: "#F3F4F6",
-                alignItems: "center",
-              }}
+            {/* Info panel */}
+            <View style={styles.info}>
+              <View>
+                <Text numberOfLines={2} style={styles.name}>{item.name}</Text>
+                <Text style={styles.price}>{priceStr}</Text>
+              </View>
+
+              <View style={styles.dealerRow}>
+                <Image source={{ uri: avatar }} style={styles.dealerAvatar} />
+                <View style={{ flex: 1 }}>
+                  <Text numberOfLines={1} style={styles.dealerName}>{dealerName}</Text>
+                  {!!item.city && (
+                    <Text style={styles.city} numberOfLines={1}>{item.city}</Text>
+                  )}
+                </View>
+              </View>
+
+              <View style={styles.detailsHint}>
+                <Text style={styles.detailsHintText}>Tap for details</Text>
+                <Ionicons name="chevron-forward" size={11} color="#9CA3AF" />
+              </View>
+            </View>
+          </View>
+        </View>
+      </TouchableOpacity>
+
+      {/* ── Bottom-sheet modal ── */}
+      <Modal
+        visible={modalVisible}
+        animationType="slide"
+        transparent
+        statusBarTranslucent
+        onRequestClose={closeModal}
+      >
+        {/* Scrim — tap to close */}
+        <Pressable style={sheet.scrim} onPress={closeModal}>
+          {/* Sheet — absorb inner taps */}
+          <Pressable style={sheet.sheet} onPress={() => { }}>
+            {/* Handle */}
+            <View style={sheet.handle} />
+
+            {/* Header */}
+            <View style={sheet.header}>
+              <Text style={sheet.headerTitle} numberOfLines={1}>{item.name}</Text>
+              <View style={sheet.headerActions}>
+                <TouchableOpacity onPress={onShare} style={sheet.iconBtn} activeOpacity={0.75}>
+                  <Ionicons name="share-outline" size={18} color="#374151" />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={closeModal} style={sheet.iconBtn} activeOpacity={0.75}>
+                  <Ionicons name="close" size={18} color="#374151" />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={sheet.scrollContent}
+              bounces={false}
+              overScrollMode="never"
             >
-              <Text
-                style={{
-                  fontWeight: "700",
-                  fontSize: 14,
-                  color: "#6B7280",
-                }}
+              {/* Image thumbnail strip */}
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={sheet.thumbsRow}
+                overScrollMode="never"
               >
-                Cancel
-              </Text>
-            </TouchableOpacity>
+                {images.map((uri: string, i: number) => (
+                  <TouchableOpacity
+                    key={`thumb-${item.id}-${i}`}
+                    onPress={() => openViewer(i)}
+                    activeOpacity={0.85}
+                    style={sheet.thumbWrap}
+                  >
+                    {uri ? (
+                      <Image source={{ uri }} style={sheet.thumb} resizeMode="cover" />
+                    ) : (
+                      <View style={[sheet.thumb, sheet.thumbEmpty]}>
+                        <Ionicons name="image-outline" size={22} color="#D1D5DB" />
+                      </View>
+                    )}
+                    <View style={sheet.expandOverlay}>
+                      <Ionicons name="expand-outline" size={12} color="white" />
+                    </View>
+                    {i === 0 && images.length > 1 && (
+                      <View style={sheet.thumbBadge}>
+                        <Text style={sheet.thumbBadgeText}>{images.length} photos</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+
+              {/* Price + tags */}
+              <View style={sheet.priceRow}>
+                <Text style={sheet.productPrice}>{priceStr}</Text>
+                <View style={sheet.tagsRow}>
+                  {item.category && (
+                    <View style={sheet.tag}>
+                      <Text style={sheet.tagText}>{item.category}</Text>
+                    </View>
+                  )}
+                  {item.city && (
+                    <View style={sheet.tag}>
+                      <Ionicons name="location-outline" size={10} color="#6366F1" />
+                      <Text style={sheet.tagText}>{item.city}</Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+
+              {/* Description */}
+              {!!desc && (
+                <>
+                  <View style={sheet.divider} />
+                  <Text style={sheet.sectionLabel}>Description</Text>
+                  <Text style={sheet.descText}>{desc}</Text>
+                </>
+              )}
+
+              {/* Dealer */}
+              <View style={sheet.divider} />
+              <Text style={sheet.sectionLabel}>Sold by</Text>
+              <TouchableOpacity
+                style={sheet.dealerCard}
+                onPress={goToProfile}
+                activeOpacity={0.82}
+              >
+                <Image source={{ uri: avatar }} style={sheet.dealerAvatar} />
+                <View style={{ flex: 1 }}>
+                  <Text style={sheet.dealerName}>{dealerName}</Text>
+                  {!!item.city && <Text style={sheet.dealerCity}>{item.city}</Text>}
+                </View>
+                <View style={sheet.viewChip}>
+                  <Text style={sheet.viewChipText}>Profile</Text>
+                  <Ionicons name="chevron-forward" size={12} color="#6366F1" />
+                </View>
+              </TouchableOpacity>
+
+              {/* CTA */}
+              <View style={sheet.divider} />
+              <View style={sheet.ctaRow}>
+                <TouchableOpacity
+                  style={sheet.btnWA}
+                  onPress={openWhatsApp}
+                  activeOpacity={0.82}
+                >
+                  <FontAwesome5 name="whatsapp" size={20} color="white" />
+                  <Text style={sheet.btnWAText}>WhatsApp Dealer</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={sheet.btnIconShare}
+                  onPress={onShare}
+                  activeOpacity={0.82}
+                >
+                  <Ionicons name="share-social-outline" size={18} color="#4F46E5" />
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
           </Pressable>
         </Pressable>
       </Modal>
-    </View>
+
+      {/* Full-screen image viewer */}
+      {ImageView && (
+        <ImageView
+          images={viewerImgs}
+          imageIndex={viewerIdx}
+          visible={viewerOpen}
+          onRequestClose={closeViewer}
+        />
+      )}
+    </>
   );
 };
 
-export const CARD_WIDTH = SCREEN_WIDTH;
+// Memoize to avoid re-renders when the parent list re-renders
+export const SearchProductCard = React.memo(SearchProductCardInner);
+export const CARD_WIDTH = SW;
+
+/* ─────────────────────────────────────────
+   CARD STYLES
+───────────────────────────────────────── */
+const styles = StyleSheet.create({
+  wrapper: {
+    width: SW,
+    paddingHorizontal: 14,
+    marginBottom: 12,
+  },
+  card: {
+    backgroundColor: "white",
+    borderRadius: 18,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.07,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  row: {
+    flexDirection: "row",
+    height: CARD_HEIGHT,
+  },
+  imgWrap: {
+    width: IMG_W,
+    height: "100%",
+    backgroundColor: "#F0F0F0",
+  },
+  img: { width: IMG_W, height: CARD_HEIGHT },
+  imgPlaceholder: {
+    width: IMG_W,
+    height: CARD_HEIGHT,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#E5E7EB",
+  },
+  imgGrad: {
+    position: "absolute",
+    left: 0, right: 0, bottom: 0, height: 40,
+  },
+  badge: {
+    position: "absolute",
+    top: 7, right: 7,
+    backgroundColor: "rgba(0,0,0,0.52)",
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 9,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+  },
+  badgeText: { color: "white", fontSize: 10, fontWeight: "700" },
+  info: {
+    flex: 1,
+    padding: 12,
+    justifyContent: "space-between",
+  },
+  name: {
+    color: "#111827",
+    fontWeight: "800",
+    fontSize: 13.5,
+    lineHeight: 18,
+    letterSpacing: -0.3,
+  },
+  price: {
+    color: "#059669",
+    fontWeight: "900",
+    fontSize: 18,
+    letterSpacing: -0.5,
+    marginTop: 2,
+  },
+  dealerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+  },
+  dealerAvatar: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    borderWidth: 1.5,
+    borderColor: "#E5E7EB",
+    backgroundColor: "#F3F4F6",
+  },
+  dealerName: {
+    fontSize: 11.5,
+    color: "#374151",
+    fontWeight: "700",
+  },
+  city: {
+    fontSize: 10,
+    color: "#9CA3AF",
+    fontWeight: "500",
+  },
+  detailsHint: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+  },
+  detailsHintText: {
+    fontSize: 10,
+    color: "#9CA3AF",
+    fontWeight: "500",
+  },
+});
+
+/* ─────────────────────────────────────────
+   BOTTOM SHEET STYLES
+───────────────────────────────────────── */
+const sheet = StyleSheet.create({
+  scrim: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "flex-end",
+  },
+  sheet: {
+    height: SH * 0.62,
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 20,
+  },
+  handle: {
+    alignSelf: "center",
+    marginTop: 10,
+    width: 38,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#D1D5DB",
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 18,
+    paddingTop: 12,
+    paddingBottom: 10,
+  },
+  headerTitle: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#111827",
+    letterSpacing: -0.3,
+    marginRight: 8,
+  },
+  headerActions: {
+    flexDirection: "row",
+    gap: 6,
+  },
+  iconBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#F3F4F6",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  scrollContent: {
+    paddingBottom: 30,
+  },
+  thumbsRow: {
+    paddingHorizontal: 18,
+    gap: 10,
+    paddingBottom: 4,
+  },
+  thumbWrap: {
+    borderRadius: 12,
+    overflow: "hidden",
+    position: "relative",
+  },
+  thumb: {
+    width: THUMB_W,
+    height: THUMB_H,
+    borderRadius: 12,
+  },
+  thumbEmpty: {
+    backgroundColor: "#E5E7EB",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  expandOverlay: {
+    position: "absolute",
+    bottom: 5, right: 5,
+    width: 20, height: 20,
+    borderRadius: 10,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  thumbBadge: {
+    position: "absolute",
+    top: 5, left: 5,
+    backgroundColor: "rgba(0,0,0,0.52)",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  thumbBadgeText: { color: "white", fontSize: 9, fontWeight: "700" },
+  priceRow: {
+    paddingHorizontal: 18,
+    paddingTop: 14,
+  },
+  productPrice: {
+    fontSize: 26,
+    fontWeight: "900",
+    color: "#059669",
+    letterSpacing: -1,
+  },
+  tagsRow: {
+    flexDirection: "row",
+    gap: 7,
+    marginTop: 8,
+    flexWrap: "wrap",
+  },
+  tag: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: "#EEF2FF",
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 20,
+  },
+  tagText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#4F46E5",
+  },
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: "#E5E7EB",
+    marginVertical: 14,
+    marginHorizontal: 18,
+  },
+  sectionLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#9CA3AF",
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+    marginBottom: 8,
+    paddingHorizontal: 18,
+  },
+  descText: {
+    fontSize: 13.5,
+    color: "#374151",
+    lineHeight: 21,
+    paddingHorizontal: 18,
+  },
+  dealerCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginHorizontal: 18,
+    backgroundColor: "#F9FAFB",
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  dealerAvatar: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    borderWidth: 2,
+    borderColor: "#E5E7EB",
+    backgroundColor: "#F3F4F6",
+  },
+  dealerName: {
+    fontSize: 13.5,
+    fontWeight: "700",
+    color: "#111827",
+  },
+  dealerCity: {
+    fontSize: 11.5,
+    color: "#9CA3AF",
+    fontWeight: "500",
+    marginTop: 1,
+  },
+  viewChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    backgroundColor: "#EEF2FF",
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 20,
+  },
+  viewChipText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#6366F1",
+  },
+  ctaRow: {
+    flexDirection: "row",
+    gap: 10,
+    paddingHorizontal: 18,
+  },
+  btnWA: {
+    flex: 1,
+    height: 46,
+    borderRadius: 14,
+    backgroundColor: "#25D366",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    shadowColor: "#25D366",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  btnWAText: {
+    color: "white",
+    fontWeight: "800",
+    fontSize: 13.5,
+  },
+  btnIconShare: {
+    width: 46,
+    height: 46,
+    borderRadius: 14,
+    backgroundColor: "#EEF2FF",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#C7D2FE",
+  },
+});

@@ -1,4 +1,5 @@
 import { FeedProductCard } from "@/src/components/FeedProductCard";
+import { SkeletonList } from "@/src/components/Skeleton";
 import { useAuth } from "@/src/context/AuthContext";
 import { useConnectionStatus } from "@/src/hooks/useConnectionStatus";
 import { useProfileData } from "@/src/hooks/useProfileData";
@@ -11,7 +12,6 @@ import { FlashList } from "@shopify/flash-list";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   Dimensions,
   Image,
@@ -404,16 +404,19 @@ function UserProfile() {
   // Loading state
   if (loadingPrivacy || connectionLoading || profileLoading) {
     return (
-      <View
-        style={{ flex: 1, backgroundColor: "white", paddingTop: insets.top }}
-      >
+      <View style={{ flex: 1, backgroundColor: "white", paddingTop: insets.top }}>
         <StatusBar barStyle="dark-content" />
-        <View className="flex-1 justify-center items-center">
-          <ActivityIndicator size="large" color="#4F46E5" />
-          <Text className="mt-4 text-gray-500 font-bold">
-            Loading profile...
-          </Text>
+        {/* Skeleton header */}
+        <View style={{ flexDirection: "row", alignItems: "center", padding: 20, paddingTop: 16 }}>
+          <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: "#E5E7EB" }} />
+          <View style={{ flex: 1, marginLeft: 16 }}>
+            <View style={{ width: 140, height: 14, backgroundColor: "#E5E7EB", borderRadius: 7, marginBottom: 8 }} />
+            <View style={{ width: 100, height: 11, backgroundColor: "#E5E7EB", borderRadius: 6, marginBottom: 8 }} />
+            <View style={{ width: 80, height: 10, backgroundColor: "#E5E7EB", borderRadius: 5 }} />
+          </View>
         </View>
+        <View style={{ height: 1, backgroundColor: "#F3F4F6", marginHorizontal: 20, marginBottom: 12 }} />
+        <SkeletonList count={5} type="horizontal" />
       </View>
     );
   }
@@ -597,7 +600,6 @@ function UserProfile() {
                 item={item}
                 height={reelHeight}
                 onClose={() => setFeedVisible(false)}
-                onPressOptions={() => { }}
               />
             )}
           />

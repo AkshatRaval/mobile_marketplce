@@ -64,3 +64,11 @@ export interface ProductListing {
   price: string;
   image: string;
 }
+
+export interface ShopResult {
+  id: string;
+  shopName: string;
+  displayName: string;
+  photoUrl: string | null;
+  city: string;
+}

@@ -25,7 +25,7 @@ export default function UploadPost() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  const { images, addImage, removeImage, clearImages, canAddMore } =
+  const { images, addImage, addImageFromCamera, removeImage, clearImages, canAddMore } =
     useImagePicker(4);
 
   const {
@@ -121,13 +121,25 @@ export default function UploadPost() {
               ))}
 
               {canAddMore && (
-                <TouchableOpacity
-                  onPress={addImage}
-                  className="w-20 h-20 border-2 border-dashed border-gray-300 rounded-xl items-center justify-center bg-gray-50"
-                >
-                  <Ionicons name="add-circle-outline" size={24} color="#9CA3AF" />
-                  <Text className="text-[10px] text-gray-500 font-medium mt-1">Add</Text>
-                </TouchableOpacity>
+                <>
+                  {/* Gallery picker */}
+                  <TouchableOpacity
+                    onPress={addImage}
+                    className="w-20 h-20 border-2 border-dashed border-gray-300 rounded-xl items-center justify-center bg-gray-50"
+                  >
+                    <Ionicons name="images-outline" size={24} color="#9CA3AF" />
+                    <Text className="text-[10px] text-gray-500 font-medium mt-1">Gallery</Text>
+                  </TouchableOpacity>
+
+                  {/* Camera picker */}
+                  <TouchableOpacity
+                    onPress={addImageFromCamera}
+                    className="w-20 h-20 border-2 border-dashed border-indigo-300 rounded-xl items-center justify-center bg-indigo-50"
+                  >
+                    <Ionicons name="camera-outline" size={24} color="#6366F1" />
+                    <Text className="text-[10px] text-indigo-500 font-medium mt-1">Camera</Text>
+                  </TouchableOpacity>
+                </>
               )}
             </View>
 
@@ -233,11 +245,10 @@ export default function UploadPost() {
           <TouchableOpacity
             onPress={handlePost}
             disabled={uploading || !isValid}
-            className={`${
-              uploading || !isValid
+            className={`${uploading || !isValid
                 ? "bg-gray-300"
                 : "bg-indigo-600"
-            } py-4 rounded-xl items-center shadow-sm`}
+              } py-4 rounded-xl items-center shadow-sm`}
           >
             {uploading ? (
               <View className="flex-row items-center">
@@ -258,8 +269,8 @@ export default function UploadPost() {
               {images.length === 0
                 ? "Please add at least one photo"
                 : !name.trim()
-                ? "Product name is required"
-                : "Price is required"}
+                  ? "Product name is required"
+                  : "Price is required"}
             </Text>
           )}
         </View>

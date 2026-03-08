@@ -1,3 +1,4 @@
+import { SkeletonList } from "@/src/components/Skeleton";
 import { useAuth } from "@/src/context/AuthContext";
 import { useAcceptedConnections } from "@/src/hooks/useAcceptedConnections";
 import { Ionicons } from "@expo/vector-icons";
@@ -5,14 +6,13 @@ import { FlashList } from "@shopify/flash-list";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React from "react";
 import {
-  ActivityIndicator,
   Image,
   Linking,
   RefreshControl,
   StatusBar,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -58,9 +58,7 @@ export default function MyConnections() {
 
       {/* List */}
       {loading && !refreshing ? (
-        <View className="flex-1 justify-center items-center">
-          <ActivityIndicator size="large" color="#4F46E5" />
-        </View>
+        <SkeletonList count={6} type="person" />
       ) : connections.length === 0 ? (
         <View className="flex-1 justify-center items-center opacity-50">
           <Ionicons name="people-outline" size={80} color="#9CA3AF" />

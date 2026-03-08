@@ -1,6 +1,5 @@
 // src/hooks/useImagePicker.ts
-// Handles ALL image picking logic
-// EXTRACTED FROM: upload.tsx lines 51, 71-92
+// Handles ALL image picking logic — gallery + camera
 
 import * as ImagePicker from "expo-image-picker";
 import { useState } from "react";
@@ -9,6 +8,7 @@ import { Alert, Platform } from "react-native";
 interface UseImagePickerReturn {
   images: string[];
   addImage: () => Promise<void>;
+  addImageFromCamera: () => Promise<void>;
   removeImage: (index: number) => void;
   clearImages: () => void;
   canAddMore: boolean;
@@ -17,20 +17,15 @@ interface UseImagePickerReturn {
 export function useImagePicker(maxImages: number = 4): UseImagePickerReturn {
   const [images, setImages] = useState<string[]>([]);
 
-  /**
-   * Pick image from library
-   */
+  /** Pick image from gallery */
   const addImage = async () => {
-    // Check limit
     if (images.length >= maxImages) {
       Alert.alert("Limit Reached", `Max ${maxImages} images allowed.`);
       return;
     }
 
     try {
-      // Request permissions first
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      
       if (status !== "granted") {
         Alert.alert(
           "Permission Required",
@@ -39,28 +34,57 @@ export function useImagePicker(maxImages: number = 4): UseImagePickerReturn {
         return;
       }
 
-      // Launch image picker with optimized settings
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: false, // No cropping screen
-        allowsMultipleSelection: false, // Single image at a time
-        quality: 0.7, // Balanced quality
-        exif: false, // Don't include metadata
-        base64: false, // Don't encode as base64
-        ...(Platform.OS === "android" && {
-          // Android-specific options to bypass crop screen
-          selectionLimit: 1,
-        }),
+        allowsEditing: false,
+        allowsMultipleSelection: false,
+        quality: 0.7,
+        exif: false,
+        base64: false,
+        ...(Platform.OS === "android" && { selectionLimit: 1 }),
       });
 
-      // Add image if not cancelled
       if (!result.canceled && result.assets && result.assets.length > 0) {
         setImages((prev) => [...prev, result.assets[0].uri]);
       }
-
     } catch (error) {
       console.error("❌ Error picking image:", error);
       Alert.alert("Error", "Failed to pick image");
+    }
+  };
+
+  /** Capture a photo directly from camera */
+  const addImageFromCamera = async () => {
+    if (images.length >= maxImages) {
+      Alert.alert("Limit Reached", `Max ${maxImages} images allowed.`);
+      return;
+    }
+
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission Required",
+          "Please allow camera access to take photos."
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.7,
+        exif: false,
+        base64: false,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setImages((prev) => [...prev, result.assets[0].uri]);
+      }
+    } catch (error) {
+      console.error("❌ Error taking photo:", error);
+      Alert.alert("Error", "Failed to take photo");
     }
   };
 
@@ -68,9 +92,6 @@ export function useImagePicker(maxImages: number = 4): UseImagePickerReturn {
     setImages((prev) => prev.filter((_, i) => i !== index));
   };
 
-  /**
-   * Clear all images
-   */
   const clearImages = () => {
     setImages([]);
   };
@@ -80,6 +101,7 @@ export function useImagePicker(maxImages: number = 4): UseImagePickerReturn {
   return {
     images,
     addImage,
+    addImageFromCamera,
     removeImage,
     clearImages,
     canAddMore,

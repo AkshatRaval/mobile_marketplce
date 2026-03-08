@@ -1,4 +1,4 @@
-import { supabase } from "@/src/supabaseConfig"; // ✅ Import Supabase
+import { supabase } from "@/src/supabaseConfig";
 import type { Product } from "@/src/types";
 import { communications } from "@/src/utils/communications";
 import { Ionicons } from "@expo/vector-icons";
@@ -17,17 +17,15 @@ import {
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
-// Helper to reliably get the User ID
-const getCreatorId = (item: any): string | null => {
-  const uid = item?.userId || item?.owner_id || item?.dealerId || item?.createdBy || null;
-  // console.log("🔍 getCreatorId called for product:", item?.name);
-  // console.log("  - item.userId:", item?.userId);
-  // console.log("  - item.owner_id:", item?.owner_id);
-  // console.log("  - item.dealerId:", item?.dealerId);
-  // console.log("  - item.createdBy:", item?.createdBy);
-  // console.log("  - Resolved UID:", uid);
-  return uid;
-};
+// ── Module-level profile cache ─────────────────────────────────────────────
+// Keyed by user-id. Serves cached data instantly on component recycling so
+// the user never sees a wrong dealer name/photo between scroll position changes.
+type CachedProfile = { name: string; photo: string | null; city: string };
+const profileCache = new Map<string, CachedProfile>();
+
+// ── Helper to reliably get the creator user ID ─────────────────────────────
+const getCreatorId = (item: any): string | null =>
+  item?.userId || item?.owner_id || item?.dealerId || item?.createdBy || null;
 
 interface ProductCardProps {
   item: Product;
@@ -41,11 +39,16 @@ export const ProductCard = React.memo(
     const [activeIndex, setActiveIndex] = useState(0);
     const [expanded, setExpanded] = useState(false);
 
-    // ✅ NEW: State to hold the fetched profile data
-    const [dealerProfile, setDealerProfile] = useState({
-      name: item.dealerName || "Dealer",
-      photo: item.dealerPhoto || null,
-      city: item.city || "India",
+    const uid = getCreatorId(item);
+
+    // Initialise from cache immediately — no flicker even on recycled cells
+    const [dealerProfile, setDealerProfile] = useState<CachedProfile>(() => {
+      if (uid && profileCache.has(uid)) return profileCache.get(uid)!;
+      return {
+        name: (item as any).dealerName || "Dealer",
+        photo: (item as any).dealerPhoto || null,
+        city: item.city || "India",
+      };
     });
 
     const onViewableItemsChanged = useRef(
@@ -63,12 +66,30 @@ export const ProductCard = React.memo(
     const images =
       item.images?.length > 0 ? item.images : item.image ? [item.image] : [];
 
-    // ✅ NEW: Fetch the Dealer Profile on mount
+    // ── Profile fetch with cache + cancel-on-unmount ───────────────────────
+    // When FlashList recycles this cell for a new item (uid changes):
+    //   1. If cache hit → update state instantly, no network call.
+    //   2. Otherwise → reset to item-embedded data first (clears stale name),
+    //      then fire a fetch. If the component is recycled again before it
+    //      completes, set `cancelled = true` so the stale result is dropped.
     useEffect(() => {
-      const fetchProfile = async () => {
-        const uid = getCreatorId(item);
-        if (!uid) return;
+      if (!uid) return;
 
+      if (profileCache.has(uid)) {
+        setDealerProfile(profileCache.get(uid)!);
+        return;
+      }
+
+      // Reset immediately so no stale dealer info lingers
+      setDealerProfile({
+        name: (item as any).dealerName || "Dealer",
+        photo: (item as any).dealerPhoto || null,
+        city: item.city || "India",
+      });
+
+      let cancelled = false;
+
+      const fetchProfile = async () => {
         try {
           const { data, error } = await supabase
             .from("profiles")
@@ -76,50 +97,40 @@ export const ProductCard = React.memo(
             .eq("id", uid)
             .single();
 
-          if (data && !error) {
-            setDealerProfile({
-              name: data.shop_name || data.display_name || "Dealer",
-              photo: data.photo_url || null,
-              city: data.city || "India",
-            });
-          }
-        } catch (e) {
-          // Fail silently and keep default/fallback values
-          // console.log("Profile fetch failed in card (silent)");
+          if (cancelled || error || !data) return;
+
+          const profile: CachedProfile = {
+            name: data.shop_name || data.display_name || "Dealer",
+            photo: data.photo_url || null,
+            city: data.city || "India",
+          };
+          profileCache.set(uid, profile);
+          setDealerProfile(profile);
+        } catch {
+          // Fail silently — fallback data already shown
         }
       };
 
       fetchProfile();
-    }, [item]);
+      // Cancel in-flight fetch if the cell is recycled before it resolves
+      return () => { cancelled = true; };
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [uid]);
 
     const handleWhatsAppPress = async () => {
       const dealerId = getCreatorId(item);
       if (!dealerId) return;
-
-      await communications.openWhatsAppForProduct(
-        dealerId,
-        item.name,
-        String(item.price)
-      );
+      await communications.openWhatsAppForProduct(dealerId, item.name, String(item.price));
     };
 
     const handleProfileClick = () => {
-      const uid = getCreatorId(item);
-      // console.log("🎯 Profile badge clicked in ProductCard");
-      // console.log("  - Product name:", item.name);
-      // console.log("  - Extracted UID:", uid);
-
-      if (uid) {
-        // console.log("  - Calling onPressProfile with UID:", uid);
-        onPressProfile(uid);
-      } else {
-        // console.log("  ❌ No UID found, not calling onPressProfile");
-      }
+      const id = getCreatorId(item);
+      if (id) onPressProfile(id);
     };
 
     return (
       <View style={{ height, width: SCREEN_WIDTH, backgroundColor: "white" }}>
-        {/* Card Container with margins */}
+        {/* Card container */}
         <View
           style={{
             flex: 1,
@@ -166,7 +177,7 @@ export const ProductCard = React.memo(
             }}
           />
 
-          {/* DEALER BADGE - TOP */}
+          {/* DEALER BADGE */}
           <TouchableOpacity
             onPress={handleProfileClick}
             style={{
@@ -181,7 +192,6 @@ export const ProductCard = React.memo(
               borderRadius: 999,
             }}
           >
-            {/* ✅ FIXED: Uses local 'dealerProfile' state */}
             <Image
               source={{
                 uri:
@@ -197,11 +207,9 @@ export const ProductCard = React.memo(
               }}
             />
             <View style={{ marginLeft: 8 }}>
-              {/* ✅ FIXED: Uses local 'dealerProfile' state */}
               <Text style={{ color: "white", fontSize: 12, fontWeight: "700" }}>
                 {dealerProfile.name}
               </Text>
-
               <View style={{ flexDirection: "row", alignItems: "center", marginTop: 2 }}>
                 <Ionicons name="location-sharp" size={10} color="#9CA3AF" />
                 <Text style={{ color: "#D1D5DB", fontSize: 10, marginLeft: 2 }}>
@@ -251,7 +259,7 @@ export const ProductCard = React.memo(
               </View>
             )}
 
-            {/* TITLE + PRICE + CHAT BUTTON */}
+            {/* TITLE + PRICE + CHAT */}
             <View
               style={{
                 flexDirection: "row",
@@ -262,24 +270,12 @@ export const ProductCard = React.memo(
             >
               <View style={{ flex: 1, marginRight: 12 }}>
                 <Text
-                  style={{
-                    color: "white",
-                    fontWeight: "900",
-                    fontSize: 28,
-                    lineHeight: 32,
-                  }}
+                  style={{ color: "white", fontWeight: "900", fontSize: 28, lineHeight: 32 }}
                   numberOfLines={2}
                 >
                   {item.name}
                 </Text>
-                <Text
-                  style={{
-                    color: "#FBBF24",
-                    fontWeight: "700",
-                    fontSize: 22,
-                    marginTop: 4,
-                  }}
-                >
+                <Text style={{ color: "#FBBF24", fontWeight: "700", fontSize: 22, marginTop: 4 }}>
                   ₹{Number(item.price).toLocaleString()}
                 </Text>
               </View>
@@ -308,14 +304,7 @@ export const ProductCard = React.memo(
                 {item.description || "No description provided."}
               </Text>
               {(item.description?.length || 0) > 60 && (
-                <Text
-                  style={{
-                    color: "#9CA3AF",
-                    fontSize: 11,
-                    marginTop: 4,
-                    fontWeight: "700",
-                  }}
-                >
+                <Text style={{ color: "#9CA3AF", fontSize: 11, marginTop: 4, fontWeight: "700" }}>
                   {expanded ? "Show less" : "...more"}
                 </Text>
               )}

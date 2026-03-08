@@ -333,7 +333,9 @@ export const profileApi = {
           sale_type: saleDetails.type,
           buyer_name: saleDetails.buyerName || null,
           buyer_phone: saleDetails.buyerPhone || null,
-          imei: saleDetails.imei || null,
+          imei: saleDetails.imei2
+            ? `${saleDetails.imei || ""}  /  ${saleDetails.imei2}`
+            : saleDetails.imei || null,
           sold_at: new Date().toISOString(),
         })
         .select();
