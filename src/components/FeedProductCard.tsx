@@ -29,6 +29,7 @@ const { width: SW } = Dimensions.get("window");
 interface FeedProductCardProps {
   item: any;
   height: number;
+  width?: number;
   onClose: () => void;
   onDeleted?: (id: string) => void;
   onUpdated?: (id: string, updates: any) => void;
@@ -37,10 +38,12 @@ interface FeedProductCardProps {
 const FeedProductCardInner: React.FC<FeedProductCardProps> = ({
   item,
   height,
+  width: cardWidth,
   onClose,
   onDeleted,
   onUpdated,
 }) => {
+  const W = cardWidth ?? SW;
   const { user } = useAuth();
   const { profileData, refetch } = useProfileData(user?.id);
   const { deleteProduct, updateProduct, recordSale } = useProfileActions(
@@ -190,7 +193,7 @@ const FeedProductCardInner: React.FC<FeedProductCardProps> = ({
   }, [item.dealerPhone, item.name, priceStr]);
 
   return (
-    <View style={{ height, width: SW, backgroundColor: "#0A0A0A" }}>
+    <View style={{ height, width: W, backgroundColor: "#0A0A0A" }}>
       <StatusBar hidden />
 
       {/* ══════════════════════════════════
@@ -202,16 +205,15 @@ const FeedProductCardInner: React.FC<FeedProductCardProps> = ({
           horizontal
           pagingEnabled
           showsHorizontalScrollIndicator={false}
-          estimatedItemSize={SW}
           onViewableItemsChanged={onViewableItemsChanged}
           viewabilityConfig={viewabilityConfig}
           keyExtractor={(_: any, i: number) => `${item.id}-img-${i}`}
           renderItem={({ item: uri }: { item: string }) => (
-            <Image source={{ uri }} style={{ width: SW, height }} resizeMode="cover" />
+            <Image source={{ uri }} style={{ width: W, height }} resizeMode="cover" />
           )}
         />
       ) : (
-        <View style={{ width: SW, height, backgroundColor: "#1A1A1A", alignItems: "center", justifyContent: "center" }}>
+        <View style={{ width: W, height, backgroundColor: "#1A1A1A", alignItems: "center", justifyContent: "center" }}>
           <Ionicons name="image-outline" size={64} color="#333" />
         </View>
       )}
@@ -246,9 +248,8 @@ const FeedProductCardInner: React.FC<FeedProductCardProps> = ({
           </View>
         )}
 
-        <TouchableOpacity onPress={openOptions} style={s.glassBtn} activeOpacity={0.75}>
-          <Ionicons name="ellipsis-vertical" size={20} color="white" />
-        </TouchableOpacity>
+        {/* spacer to keep counter centered */}
+        <View style={{ width: 40 }} />
       </View>
 
       {/* Image dots */}
@@ -485,7 +486,7 @@ const s = StyleSheet.create({
   topBar: {
     position: "absolute", top: 0, left: 0, right: 0,
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingTop: Platform.OS === "android" ? 44 : 58,
+    paddingTop: 14,
     paddingHorizontal: 16, paddingBottom: 12,
   },
   glassBtn: {
@@ -511,7 +512,7 @@ const s = StyleSheet.create({
   bottom: {
     position: "absolute", bottom: 0, left: 0, right: 0,
     paddingHorizontal: 20,
-    paddingBottom: Platform.OS === "android" ? 30 : 48,
+    paddingBottom: Platform.OS === "android" ? 24 : 32,
   },
   conditionPill: {
     flexDirection: "row", alignItems: "center", alignSelf: "flex-start",

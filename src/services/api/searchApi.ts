@@ -162,7 +162,7 @@ export const searchApi = {
           dealerId: profile.id,
           dealerName: profile.display_name || profile.shop_name || "Dealer",
           dealerAvatar: profile.photo_url,
-          dealerPhone: profile.phone || null,
+          dealerPhone: profile.phone || undefined,
           city: profile.city || "",
           name: doc.name,
           price: doc.price,
@@ -276,7 +276,7 @@ export const searchApi = {
           dealerName:
             profile.display_name || profile.shop_name || "Dealer",
           dealerAvatar: profile.photo_url,
-          dealerPhone: profile.phone || null,
+          dealerPhone: profile.phone || undefined,
           city: profile.city || "",
           name: doc.name,
           price: doc.price,

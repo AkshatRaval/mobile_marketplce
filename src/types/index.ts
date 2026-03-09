@@ -7,13 +7,14 @@ export interface Product {
   price: string | number;
   description: string;
   images: string[];
-  image?: string;
+  image?: string | null;
   dealerName: string;
   dealerPhoto?: string | null;
   dealerAvatar?: string;
   dealerPhone?: string;
   city: string;
   createdAt: number;
+  category?: string;
   extractedData?: ExtractedData;
 }
 
@@ -49,12 +50,16 @@ export interface UserProfile {
   displayName: string;
   email?: string;
   shopName: string;
-  photoURL?: string;
+  photoURL?: string | null;
   phoneNumber?: string;
   phone?: string;
   mobile?: string;
   city?: string;
-  privacy: "everyone" | "connections" | "selected" | "none";
+  role?: string;
+  privacySettings?: string;
+  onboardingStatus?: string;
+  /** @deprecated use privacySettings */
+  privacy?: "everyone" | "connections" | "selected" | "none";
   listings?: ProductListing[];
 }
 

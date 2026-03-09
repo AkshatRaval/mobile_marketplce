@@ -11,7 +11,6 @@ export const profileApi = {
         .single();
 
       if (error) throw error;
-      // @ts-ignore
       return {
         uid: data.id,
         displayName: data.display_name || "",
@@ -201,9 +200,7 @@ export const profileApi = {
   },
 
   deleteProduct: async (
-    productId: string,
-    userId: string,
-    currentListings: any[]
+    productId: string
   ): Promise<string[]> => {
     try {
       const { data: product } = await supabase
@@ -227,9 +224,7 @@ export const profileApi = {
 
   updateProduct: async (
     productId: string,
-    userId: string,
-    updates: any,
-    currentListings: any[]
+    updates: any
   ): Promise<void> => {
     try {
       const validUpdates: any = {};

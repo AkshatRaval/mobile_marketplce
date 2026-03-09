@@ -99,8 +99,9 @@ export function useProducts(): UseProductsReturn {
     createdAt: doc.created_at ? new Date(doc.created_at).getTime() : Date.now(),
     dealerName: doc.profiles?.shop_name || doc.profiles?.display_name || "Dealer",
     dealerPhoto: doc.profiles?.photo_url || null,
-    dealerPhone: doc.profiles?.phone || null,
-    extractedData: doc.extracted_data || null,
+    dealerPhone: doc.profiles?.phone || undefined,
+    extractedData: doc.extracted_data || undefined,
+    category: undefined
   });
 
   // Core fetch with pagination + privacy filter

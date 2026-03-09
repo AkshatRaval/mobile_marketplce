@@ -134,10 +134,10 @@ export default function UploadPost() {
                   {/* Camera picker */}
                   <TouchableOpacity
                     onPress={addImageFromCamera}
-                    className="w-20 h-20 border-2 border-dashed border-indigo-300 rounded-xl items-center justify-center bg-indigo-50"
+                    className="w-20 h-20 border-2 border-dashed border-gray-300 rounded-xl items-center justify-center bg-gray-50"
                   >
-                    <Ionicons name="camera-outline" size={24} color="#6366F1" />
-                    <Text className="text-[10px] text-indigo-500 font-medium mt-1">Camera</Text>
+                    <Ionicons name="camera-outline" size={24} color="#9CA3AF" />
+                    <Text className="text-[10px] text-gray-500 font-medium mt-1">Camera</Text>
                   </TouchableOpacity>
                 </>
               )}
@@ -160,19 +160,36 @@ export default function UploadPost() {
             {/* NAME */}
             <View className="mb-4">
               <Text className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">
-                Product Name
+                Phone Name
               </Text>
               <TextInput
                 value={name}
                 onChangeText={setName}
-                placeholder="Enter product name"
+                placeholder="e.g. iPhone 14 Pro, Samsung S23"
                 placeholderTextColor="#9CA3AF"
                 className="bg-gray-50 text-gray-900 border border-gray-200 px-4 py-3.5 rounded-xl font-medium text-base"
               />
             </View>
 
-            {/* PRICE */}
+            {/* DESCRIPTION */}
             <View className="mb-4">
+              <Text className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">
+                Description
+              </Text>
+              <TextInput
+                value={description}
+                onChangeText={setDescription}
+                placeholder="Condition, storage, colour, accessories included…"
+                placeholderTextColor="#9CA3AF"
+                multiline
+                numberOfLines={4}
+                textAlignVertical="top"
+                className="bg-gray-50 text-gray-900 border border-gray-200 px-4 py-3.5 rounded-xl font-medium text-base h-28"
+              />
+            </View>
+
+            {/* PRICE */}
+            <View>
               <Text className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">
                 Price
               </Text>
@@ -189,23 +206,6 @@ export default function UploadPost() {
                   className="flex-1 text-gray-900 px-4 py-3.5 font-semibold text-base"
                 />
               </View>
-            </View>
-
-            {/* DESCRIPTION */}
-            <View>
-              <Text className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">
-                Description
-              </Text>
-              <TextInput
-                value={description}
-                onChangeText={setDescription}
-                placeholder="Describe the product condition, features, etc."
-                placeholderTextColor="#9CA3AF"
-                multiline
-                numberOfLines={4}
-                textAlignVertical="top"
-                className="bg-gray-50 text-gray-900 border border-gray-200 px-4 py-3.5 rounded-xl font-medium text-base h-28"
-              />
             </View>
           </View>
 
@@ -246,8 +246,8 @@ export default function UploadPost() {
             onPress={handlePost}
             disabled={uploading || !isValid}
             className={`${uploading || !isValid
-                ? "bg-gray-300"
-                : "bg-indigo-600"
+              ? "bg-gray-300"
+              : "bg-indigo-600"
               } py-4 rounded-xl items-center shadow-sm`}
           >
             {uploading ? (

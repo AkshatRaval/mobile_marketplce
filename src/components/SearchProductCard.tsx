@@ -196,8 +196,11 @@ const SearchProductCardInner: React.FC<Props> = ({ item }) => {
             <ScrollView
               showsVerticalScrollIndicator={false}
               contentContainerStyle={sheet.scrollContent}
-              bounces={false}
-              overScrollMode="never"
+              bounces
+              alwaysBounceVertical
+              overScrollMode="always"
+              keyboardShouldPersistTaps="handled"
+              nestedScrollEnabled
             >
               {/* Image thumbnail strip */}
               <ScrollView
@@ -435,7 +438,7 @@ const sheet = StyleSheet.create({
     justifyContent: "flex-end",
   },
   sheet: {
-    height: SH * 0.62,
+    maxHeight: SH * 0.70,
     backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
