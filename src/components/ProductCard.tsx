@@ -8,6 +8,7 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   Dimensions,
   Image,
+  Platform,
   Pressable,
   Text,
   TouchableOpacity,
@@ -16,6 +17,13 @@ import {
 } from "react-native";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
+
+const FONTS = {
+  title: Platform.OS === "ios" ? "AvenirNext-Heavy" : "sans-serif-black",
+  price: Platform.OS === "ios" ? "AvenirNext-Bold" : "sans-serif-condensed",
+  dealer: Platform.OS === "ios" ? "AvenirNext-DemiBold" : "sans-serif-medium",
+  desc: Platform.OS === "ios" ? "Avenir-Medium" : "sans-serif-medium",
+};
 
 // ── Module-level profile cache ─────────────────────────────────────────────
 // Keyed by user-id. Serves cached data instantly on component recycling so
@@ -118,9 +126,12 @@ export const ProductCard = React.memo(
     }, [uid]);
 
     const handleWhatsAppPress = async () => {
-      const dealerId = getCreatorId(item);
-      if (!dealerId) return;
-      await communications.openWhatsAppForProduct(dealerId, item.name, String(item.price));
+      const phone = (item as any).dealerPhone || (item as any).phone;
+      communications.askDealerForProduct(phone, item.name, item.description || "", `₹${Number(item.price).toLocaleString("en-IN")}`, item.id);
+    };
+
+    const handleSharePress = () => {
+      communications.shareProduct(item.name, item.description || "", `₹${Number(item.price).toLocaleString("en-IN")}`, item.id);
     };
 
     const handleProfileClick = () => {
@@ -167,13 +178,13 @@ export const ProductCard = React.memo(
           {/* GRADIENT OVERLAY */}
           <LinearGradient
             pointerEvents="none"
-            colors={["transparent", "rgba(0,0,0,0.4)", "rgba(0,0,0,0.9)"]}
+            colors={["transparent", "rgba(0,0,0,0.5)", "rgba(10,10,10,1)"]}
             style={{
               position: "absolute",
               left: 0,
               right: 0,
               bottom: 0,
-              height: height * 0.5,
+              height: height * 0.55,
             }}
           />
 
@@ -207,12 +218,12 @@ export const ProductCard = React.memo(
               }}
             />
             <View style={{ marginLeft: 8 }}>
-              <Text style={{ color: "white", fontSize: 12, fontWeight: "700" }}>
+              <Text style={{ color: "#E0E7FF", fontSize: 13, fontWeight: "700", letterSpacing: 0.2, fontFamily: FONTS.dealer }}>
                 {dealerProfile.name}
               </Text>
               <View style={{ flexDirection: "row", alignItems: "center", marginTop: 2 }}>
                 <Ionicons name="location-sharp" size={10} color="#9CA3AF" />
-                <Text style={{ color: "#D1D5DB", fontSize: 10, marginLeft: 2 }}>
+                <Text style={{ color: "#D1D5DB", fontSize: 10, marginLeft: 3, fontWeight: "500" }}>
                   {dealerProfile.city}
                 </Text>
               </View>
@@ -270,41 +281,57 @@ export const ProductCard = React.memo(
             >
               <View style={{ flex: 1, marginRight: 12 }}>
                 <Text
-                  style={{ color: "white", fontWeight: "900", fontSize: 28, lineHeight: 32 }}
+                  style={{ color: "#FFFFFF", fontWeight: "800", fontSize: 26, lineHeight: 32, letterSpacing: -0.5, fontFamily: FONTS.title }}
                   numberOfLines={2}
                 >
                   {item.name}
                 </Text>
-                <Text style={{ color: "#FBBF24", fontWeight: "700", fontSize: 22, marginTop: 4 }}>
+                <Text style={{ color: "#34D399", fontWeight: "800", fontSize: 24, marginTop: 4, letterSpacing: -0.5, fontFamily: FONTS.price }}>
                   ₹{Number(item.price).toLocaleString()}
                 </Text>
               </View>
 
-              <TouchableOpacity
-                onPress={handleWhatsAppPress}
-                style={{
-                  backgroundColor: "white",
-                  height: 48,
-                  width: 48,
-                  borderRadius: 24,
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <Ionicons name="chatbubble" size={20} color="#000" />
-              </TouchableOpacity>
+              <View style={{ flexDirection: "row", gap: 10 }}>
+                <TouchableOpacity
+                  onPress={handleSharePress}
+                  style={{
+                    backgroundColor: "rgba(255,255,255,0.2)",
+                    height: 48,
+                    width: 48,
+                    borderRadius: 24,
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Ionicons name="share-social" size={20} color="white" />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={handleWhatsAppPress}
+                  style={{
+                    backgroundColor: "#25D366",
+                    height: 48,
+                    width: 48,
+                    borderRadius: 24,
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Ionicons name="chatbubble" size={20} color="#064E3B" />
+                </TouchableOpacity>
+              </View>
             </View>
 
             {/* DESCRIPTION */}
             <Pressable onPress={() => setExpanded(!expanded)}>
               <Text
                 numberOfLines={expanded ? 4 : 2}
-                style={{ color: "#D1D5DB", fontSize: 13, lineHeight: 18 }}
+                style={{ color: "#D1D5DB", fontSize: 14, lineHeight: 20, fontWeight: "400", fontFamily: FONTS.desc }}
               >
                 {item.description || "No description provided."}
               </Text>
               {(item.description?.length || 0) > 60 && (
-                <Text style={{ color: "#9CA3AF", fontSize: 11, marginTop: 4, fontWeight: "700" }}>
+                <Text style={{ color: "#9CA3AF", fontSize: 12, marginTop: 6, fontWeight: "600", letterSpacing: 0.5 }}>
                   {expanded ? "Show less" : "...more"}
                 </Text>
               )}

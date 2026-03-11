@@ -3,6 +3,7 @@
 
 import { supabase } from "@/src/supabaseConfig";
 import type { Product } from "@/src/types";
+import { parseListingText } from "@/src/utils/listingParser";
 
 export const productApi = {
   /**
@@ -16,6 +17,34 @@ export const productApi = {
     images: string[];
   }): Promise<string> => {
     try {
+      // 1. Fetch knowledge base for parsing
+      const { data: dbData } = await supabase.from('extractor_knowledge').select('*');
+      const knowledgeBase: any = { brands: {}, models: [], corrections: {} };
+      if (dbData) {
+        dbData.forEach((row: any) => {
+          if (row.category === 'brand') knowledgeBase.brands[row.key_text] = row.value_data;
+          if (row.category === 'model') knowledgeBase.models.push(row.value_data);
+          if (row.category === 'correction') knowledgeBase.corrections[row.key_text] = row.value_data;
+        });
+      }
+
+      // 2. Parse listing locally (Replaces Edge Function)
+      // We pass BOTH name and description so the parser can find RAM/Storage/Battery
+      const fullListingText = `${productData.name} ${productData.description || ""}`;
+      const parsed = parseListingText(fullListingText, knowledgeBase);
+
+      // 3. Insert product with parsed metadata
+      const updates: Record<string, any> = {};
+      if (parsed.brand && parsed.brand !== "Unknown") updates.parsed_brand = parsed.brand;
+      if (parsed.model) updates.parsed_model = parsed.model;
+      if (parsed.ram_gb != null) updates.parsed_ram_gb = parsed.ram_gb;
+      if (parsed.storage_gb != null) updates.parsed_storage_gb = parsed.storage_gb;
+      if (parsed.battery_percent != null) updates.parsed_battery_percent = parsed.battery_percent;
+      if (parsed.condition_percent != null) updates.parsed_condition_percent = parsed.condition_percent;
+
+      // Override parsed price with the explicitly entered product price
+      if (productData.price) updates.parsed_price = Number(productData.price);
+
       const { data, error } = await supabase
         .from("products")
         .insert({
@@ -24,92 +53,17 @@ export const productApi = {
           price: Number(productData.price),
           description: productData.description,
           images: productData.images,
+          ...updates // Inject parsed values immediately
         })
         .select("id")
         .single();
 
       if (error) throw error;
 
-      const productId: string = data.id;
-
-      // Fire-and-forget: call Edge Function to parse listing & store metadata
-      productApi._parseAndSaveListingData(productId, productData.name).catch(
-        (err) => console.warn("⚠️ Edge Function parse failed (non-critical):", err?.message)
-      );
-
-      return productId;
+      return data.id;
     } catch (error: any) {
       console.error("❌ Error creating product:", error.message);
       throw new Error("Failed to create product");
-    }
-  },
-
-  /**
-   * Internal: call the /extract Edge Function and save parsed metadata
-   * to the product row for use in efficient server-side searching.
-   */
-  _parseAndSaveListingData: async (
-    productId: string,
-    listingText: string
-  ): Promise<void> => {
-    try {
-      // Trim to handle .env spaces: EXPO_PUBLIC_SUPABASE_URL = https://...
-      const supabaseUrl = (process.env.EXPO_PUBLIC_SUPABASE_URL || "").trim();
-      const supabaseAnonKey = (process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "").trim();
-
-      if (!supabaseUrl || !supabaseAnonKey) {
-        console.warn("⚠️ Missing Supabase env vars — cannot call Edge Function");
-        return;
-      }
-
-      const edgeFnUrl = `${supabaseUrl}/functions/v1/listing-parser/extract`;
-      console.log("🔌 Calling Edge Function:", edgeFnUrl);
-
-      const response = await fetch(edgeFnUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${supabaseAnonKey}`,
-          apikey: supabaseAnonKey,
-        },
-        body: JSON.stringify({ text: listingText }),
-      });
-
-      if (!response.ok) {
-        const errText = await response.text();
-        console.warn("⚠️ Edge Function non-200:", response.status, errText);
-        return;
-      }
-
-      const parsed = await response.json();
-      console.log("✅ Edge Function parsed:", parsed);
-
-      const updates: Record<string, any> = {};
-      if (parsed.brand && parsed.brand !== "Unknown") updates.parsed_brand = parsed.brand;
-      if (parsed.model) updates.parsed_model = parsed.model;
-      if (parsed.ram_gb != null) updates.parsed_ram_gb = parsed.ram_gb;
-      if (parsed.storage_gb != null) updates.parsed_storage_gb = parsed.storage_gb;
-      if (parsed.battery_percent != null) updates.parsed_battery_percent = parsed.battery_percent;
-      if (parsed.condition_percent != null) updates.parsed_condition_percent = parsed.condition_percent;
-      if (parsed.price != null) updates.parsed_price = parsed.price;
-
-      if (Object.keys(updates).length === 0) {
-        console.log("ℹ️ No parsed fields to update for:", listingText);
-        return;
-      }
-
-      const { error: updateError } = await supabase
-        .from("products")
-        .update(updates)
-        .eq("id", productId);
-
-      if (updateError) {
-        console.warn("⚠️ Failed to save parsed data:", updateError.message);
-      } else {
-        console.log("✅ Saved parsed metadata for product:", productId);
-      }
-    } catch (err: any) {
-      console.warn("⚠️ _parseAndSaveListingData error:", err?.message);
     }
   },
 

@@ -1,4 +1,3 @@
-import { FeedProductCard } from "@/src/components/FeedProductCard";
 import { SkeletonList } from "@/src/components/Skeleton";
 import { useAuth } from "@/src/context/AuthContext";
 import { useConnectionStatus } from "@/src/hooks/useConnectionStatus";
@@ -281,15 +280,16 @@ function UserProfile() {
 
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [feedVisible, setFeedVisible] = useState(false);
-  const [initialFeedIndex, setInitialFeedIndex] = useState(0);
-  const [reelHeight, setReelHeight] = useState(WINDOW_HEIGHT);
   const [disconnectModalVisible, setDisconnectModalVisible] = useState(false);
 
   // Privacy state
   const [canViewProfile, setCanViewProfile] = useState(true);
   const [privacyMessage, setPrivacyMessage] = useState("");
   const [loadingPrivacy, setLoadingPrivacy] = useState(true);
+
+  // --- PAGINATION ---
+  const PAGE_SIZE = 20;
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   const filteredListings = useMemo(() => {
     if (!searchQuery.trim()) return listings;
@@ -299,6 +299,12 @@ function UserProfile() {
         item.description?.toLowerCase().includes(searchQuery.toLowerCase())
     );
   }, [searchQuery, listings]);
+
+  const paginatedListings = useMemo(
+    () => filteredListings.slice(0, visibleCount),
+    [filteredListings, visibleCount]
+  );
+  const hasMore = visibleCount < filteredListings.length;
 
   // Check privacy settings
   useEffect(() => {
@@ -397,6 +403,7 @@ function UserProfile() {
 
   const onRefresh = async () => {
     setRefreshing(true);
+    setVisibleCount(PAGE_SIZE);
     await Promise.all([refetch(), refreshConnection()]);
     setRefreshing(false);
   };
@@ -523,7 +530,7 @@ function UserProfile() {
       <StatusBar barStyle="dark-content" />
 
       <FlashList
-        data={filteredListings}
+        data={paginatedListings}
         keyExtractor={(item) => item.id}
         ListHeaderComponent={
           <ListHeader
@@ -544,6 +551,7 @@ function UserProfile() {
         numColumns={3}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ paddingBottom: 100 }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -554,8 +562,16 @@ function UserProfile() {
         renderItem={({ item, index }) => (
           <TouchableOpacity
             onPress={() => {
-              setInitialFeedIndex(index);
-              setFeedVisible(true);
+              router.push({
+                pathname: "/(dealer)/services/product-feed",
+                params: {
+                  productId: item.id,
+                  initialIndex: index.toString(),
+                  from: "profile",
+                  userId: userId,
+                  t: Date.now().toString(),
+                },
+            });
             }}
             style={{ width: GRID_ITEM_WIDTH, height: GRID_ITEM_WIDTH }}
             className="border-[0.5px] border-white"
@@ -567,6 +583,22 @@ function UserProfile() {
               className="w-full h-full bg-gray-50"
               resizeMode="cover"
             />
+            {/* Price pill */}
+            <View
+              style={{
+                position: "absolute",
+                bottom: 5,
+                left: 5,
+                backgroundColor: "rgba(0,0,0,0.55)",
+                paddingHorizontal: 5,
+                paddingVertical: 2,
+                borderRadius: 5,
+              }}
+            >
+              <Text style={{ color: "white", fontSize: 9, fontWeight: "700" }}>
+                ₹{parseInt(item.price).toLocaleString()}
+              </Text>
+            </View>
           </TouchableOpacity>
         )}
         ListEmptyComponent={
@@ -575,6 +607,33 @@ function UserProfile() {
             <Text className="font-bold mt-4">No products found</Text>
           </View>
         }
+        ListFooterComponent={
+          hasMore ? (
+            <TouchableOpacity
+              onPress={() => setVisibleCount((c) => c + PAGE_SIZE)}
+              style={{
+                alignItems: "center",
+                justifyContent: "center",
+                paddingVertical: 20,
+              }}
+            >
+              <View
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 22,
+                  backgroundColor: "#EEF2FF",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderWidth: 1.5,
+                  borderColor: "#C7D2FE",
+                }}
+              >
+                <Ionicons name="chevron-down" size={22} color="#4F46E5" />
+              </View>
+            </TouchableOpacity>
+          ) : null
+        }
       />
 
       <DisconnectModal
@@ -582,29 +641,6 @@ function UserProfile() {
         onClose={() => setDisconnectModalVisible(false)}
         onConfirm={confirmDisconnect}
       />
-
-      <Modal visible={feedVisible} animationType="slide">
-        <View
-          className="flex-1 bg-black"
-          onLayout={(e) => setReelHeight(e.nativeEvent.layout.height)}
-        >
-          <FlashList
-            data={filteredListings}
-            keyExtractor={(item) => item.id}
-            pagingEnabled
-            snapToInterval={reelHeight}
-            decelerationRate="fast"
-            initialScrollIndex={initialFeedIndex}
-            renderItem={({ item }) => (
-              <FeedProductCard
-                item={item}
-                height={reelHeight}
-                onClose={() => setFeedVisible(false)}
-              />
-            )}
-          />
-        </View>
-      </Modal>
     </View>
   );
 }

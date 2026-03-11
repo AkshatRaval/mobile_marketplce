@@ -28,7 +28,7 @@ export function useProfileActions(
       if (productImages?.length > 0) {
         await cloudinaryService.deleteMultipleImages(productImages);
       }
-      await profileApi.deleteProduct(productId, userId, profileData.listings || []);
+      await profileApi.deleteProduct(productId);
       return true;
     } catch (error) {
       Alert.alert("Error", "Failed to delete listing");
@@ -42,7 +42,7 @@ export function useProfileActions(
     if (!userId) return false;
     setLoading(true);
     try {
-      await profileApi.updateProduct(productId, userId, updates, profileData.listings || []);
+      await profileApi.updateProduct(productId, updates);
       return true;
     } catch (error) {
       Alert.alert("Error", "Failed to update listing");
@@ -55,10 +55,12 @@ export function useProfileActions(
   const logout = () => {
     Alert.alert("Log Out", "Are you sure?", [
       { text: "Cancel", style: "cancel" },
-      { text: "Log Out", style: "destructive", onPress: async () => {
+      {
+        text: "Log Out", style: "destructive", onPress: async () => {
           await profileApi.signOut();
           router.replace("/");
-      }}
+        }
+      }
     ]);
   };
 
@@ -84,30 +86,30 @@ export function useProfileActions(
 
   // ✅ FIXED: Uses profileApi.recordSale which logs + deletes product
   const recordSale = async (product: any, saleDetails: {
-      soldPrice: string;
-      buyerName?: string;
-      buyerPhone?: string;
-      imei?: string;
-      type: 'fast' | 'detailed';
+    soldPrice: string;
+    buyerName?: string;
+    buyerPhone?: string;
+    imei?: string;
+    type: 'fast' | 'detailed';
   }) => {
     if (!userId) return false;
     setLoading(true);
 
     try {
-        // Call the API method that handles both logging and deletion
-        const success = await profileApi.recordSale(product, saleDetails);
-        
-        if (!success) {
-            Alert.alert("Error", "Failed to record sale.");
-        }
-        
-        return success;
-    } catch (error) {
-        console.error("Sale Record Error:", error);
+      // Call the API method that handles both logging and deletion
+      const success = await profileApi.recordSale(product, saleDetails);
+
+      if (!success) {
         Alert.alert("Error", "Failed to record sale.");
-        return false;
+      }
+
+      return success;
+    } catch (error) {
+      console.error("Sale Record Error:", error);
+      Alert.alert("Error", "Failed to record sale.");
+      return false;
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
   };
 

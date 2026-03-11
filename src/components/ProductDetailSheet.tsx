@@ -4,6 +4,7 @@
 // WhatsApp CTA and View Profile button.
 
 import type { Product } from "@/src/types";
+import { communications } from "@/src/utils/communications";
 import { Ionicons } from "@expo/vector-icons";
 import { FlashList } from "@shopify/flash-list";
 import { LinearGradient } from "expo-linear-gradient";
@@ -13,11 +14,9 @@ import {
     Animated,
     Dimensions,
     Image,
-    Linking,
     Modal,
     Platform,
     Pressable,
-    Share,
     StyleSheet,
     Text,
     TouchableOpacity,
@@ -84,13 +83,8 @@ export const ProductDetailSheet: React.FC<ProductDetailSheetProps> = ({
         product.dealerPhoto ||
         `https://ui-avatars.com/api/?name=${encodeURIComponent(dealerName)}&background=random&color=fff`;
 
-    const handleWhatsApp = async () => {
-        const phone = product.dealerPhone;
-        if (!phone) return;
-        const msg = `Hi, I'm interested in: ${product.name} — ₹${Number(product.price).toLocaleString()}`;
-        Linking.openURL(
-            `whatsapp://send?text=${encodeURIComponent(msg)}&phone=${phone}`
-        ).catch(() => { });
+    const handleWhatsApp = () => {
+        communications.askDealerForProduct(product.dealerPhone, product.name, product.description || "", `₹${Number(product.price).toLocaleString("en-IN")}`, product.id);
     };
 
     const handleViewProfile = () => {
@@ -101,9 +95,7 @@ export const ProductDetailSheet: React.FC<ProductDetailSheetProps> = ({
     };
 
     const handleShare = () => {
-        Share.share({
-            message: `Check out ${product.name} for ₹${Number(product.price).toLocaleString()} on Mobile Marketplace!`,
-        });
+        communications.shareProduct(product.name, product.description || "", `₹${Number(product.price).toLocaleString("en-IN")}`, product.id);
     };
 
     return (

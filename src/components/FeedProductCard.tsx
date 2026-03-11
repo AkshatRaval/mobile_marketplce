@@ -1,7 +1,9 @@
 import { BarcodeScannerModal } from "@/src/components/BarcodeScannerModal";
+import { CustomDialog } from "@/src/components/CustomDialog";
 import { useAuth } from "@/src/context/AuthContext";
 import { useProfileActions } from "@/src/hooks/useProfileActions";
 import { useProfileData } from "@/src/hooks/useProfileData";
+import { communications } from "@/src/utils/communications";
 import { FontAwesome5, Ionicons } from "@expo/vector-icons";
 import { FlashList } from "@shopify/flash-list";
 import { LinearGradient } from "expo-linear-gradient";
@@ -30,6 +32,7 @@ interface FeedProductCardProps {
   item: any;
   height: number;
   width?: number;
+  dealerPhone?: string;
   onClose: () => void;
   onDeleted?: (id: string) => void;
   onUpdated?: (id: string, updates: any) => void;
@@ -39,12 +42,15 @@ const FeedProductCardInner: React.FC<FeedProductCardProps> = ({
   item,
   height,
   width: cardWidth,
+  dealerPhone,
   onClose,
   onDeleted,
   onUpdated,
 }) => {
   const W = cardWidth ?? SW;
   const { user } = useAuth();
+  const isOwner = user?.id === item.userId;
+  
   const { profileData, refetch } = useProfileData(user?.id);
   const { deleteProduct, updateProduct, recordSale } = useProfileActions(
     user?.id,
@@ -53,11 +59,13 @@ const FeedProductCardInner: React.FC<FeedProductCardProps> = ({
 
   const [activeIndex, setActiveIndex] = useState(0);
   const [expanded, setExpanded] = useState(false);
-  const [optionsVisible, setOptionsVisible] = useState(false);
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [isMarkAsSoldVisible, setIsMarkAsSoldVisible] = useState(false);
   const [isSalesLogModalVisible, setIsSalesLogModalVisible] = useState(false);
-  const slideAnim = useRef(new Animated.Value(300)).current;
+
+  // New CustomDialog states
+  const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
+  const [fastSaleDialogVisible, setFastSaleDialogVisible] = useState(false);
 
   const [editForm, setEditForm] = useState({
     name: item.name || "",
@@ -101,19 +109,6 @@ const FeedProductCardInner: React.FC<FeedProductCardProps> = ({
 
   const viewabilityConfig = useRef({ viewAreaCoveragePercentThreshold: 60 }).current;
 
-  const openOptions = useCallback(() => {
-    setOptionsVisible(true);
-    Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true, bounciness: 4 }).start();
-  }, [slideAnim]);
-
-  const closeOptions = useCallback((onDone?: () => void) => {
-    Animated.timing(slideAnim, { toValue: 300, duration: 180, useNativeDriver: true }).start(() => {
-      setOptionsVisible(false);
-      slideAnim.setValue(300);
-      onDone?.();
-    });
-  }, [slideAnim]);
-
   const openScanner = useCallback((target: "imei1" | "imei2") => {
     setScanTarget(target);
     setScannerVisible(true);
@@ -133,17 +128,20 @@ const FeedProductCardInner: React.FC<FeedProductCardProps> = ({
     }
   }, [item.id, editForm, updateProduct, onUpdated, refetch]);
 
-  const handleFastSale = useCallback(async () => {
-    Alert.alert("Fast Sale", "Mark as sold and remove listing?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Mark Sold", style: "destructive",
-        onPress: async () => {
-          const success = await recordSale(item, { type: "fast", soldPrice: item.price.toString() });
-          if (success) { setIsMarkAsSoldVisible(false); onDeleted?.(item.id); onClose(); refetch(); }
-        },
-      },
-    ]);
+  const handleFastSale = useCallback(() => {
+    setIsMarkAsSoldVisible(false);
+    // Slight delay to allow bottom sheet closing animation before dialog pop
+    setTimeout(() => setFastSaleDialogVisible(true), 300);
+  }, []);
+
+  const confirmFastSale = useCallback(async () => {
+    setFastSaleDialogVisible(false);
+    const success = await recordSale(item, { type: "fast", soldPrice: item.price.toString() });
+    if (success) { 
+      onDeleted?.(item.id); 
+      onClose(); 
+      refetch(); 
+    }
   }, [item, recordSale, onDeleted, onClose, refetch]);
 
   const handleSubmitSalesLog = useCallback(async () => {
@@ -164,33 +162,27 @@ const FeedProductCardInner: React.FC<FeedProductCardProps> = ({
   }, [item, saleInfo, recordSale, onDeleted, onClose, refetch]);
 
   const handleDelete = useCallback(() => {
-    closeOptions(() => {
-      Alert.alert("Delete Listing", `Delete "${item.name}"? This cannot be undone.`, [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete", style: "destructive",
-          onPress: async () => {
-            const success = await deleteProduct(item.id, item.images);
-            if (success) { onDeleted?.(item.id); onClose(); refetch(); }
-          },
-        },
-      ]);
-    });
-  }, [item, closeOptions, deleteProduct, onDeleted, onClose, refetch]);
+    setDeleteDialogVisible(true);
+  }, []);
 
-  const openWhatsApp = useCallback(async () => {
-    const raw = item.dealerPhone;
-    if (!raw) { alert("Phone not available."); return; }
-    let digits = raw.replace(/\D/g, "");
-    if (digits.startsWith("0")) digits = "91" + digits.slice(1);
-    if (digits.length === 10) digits = "91" + digits;
-    const msg = encodeURIComponent(`Hi! I'm interested in: *${item.name}* — ${priceStr}`);
-    const { Linking } = require("react-native");
-    const waDeep = `whatsapp://send?phone=${digits}&text=${msg}`;
-    const waWeb = `https://wa.me/${digits}?text=${msg}`;
-    const can = await Linking.canOpenURL(waDeep).catch(() => false);
-    Linking.openURL(can ? waDeep : waWeb).catch(() => alert("Could not open WhatsApp"));
-  }, [item.dealerPhone, item.name, priceStr]);
+  const confirmDelete = useCallback(async () => {
+    setDeleteDialogVisible(false);
+    const success = await deleteProduct(item.id, item.images);
+    if (success) { 
+      onDeleted?.(item.id); 
+      onClose(); 
+      refetch(); 
+    }
+  }, [item, deleteProduct, onDeleted, onClose, refetch]);
+
+  const openWhatsApp = useCallback(() => {
+    communications.askDealerForProduct(dealerPhone || item.dealerPhone, item.name, item.description || "", priceStr, item.id);
+  }, [dealerPhone, item.dealerPhone, item.name, item.description, priceStr, item.id]);
+
+  const onShare = useCallback(() => {
+    communications.shareProduct(item.name, item.description || "", priceStr, item.id);
+  }, [item.name, item.description, priceStr, item.id]);
+
 
   return (
     <View style={{ height, width: W, backgroundColor: "#0A0A0A" }}>
@@ -299,67 +291,34 @@ const FeedProductCardInner: React.FC<FeedProductCardProps> = ({
 
         {/* Action buttons */}
         <View style={s.actionRow}>
-          <TouchableOpacity style={s.btnWA} onPress={openWhatsApp} activeOpacity={0.85}>
-            <FontAwesome5 name="whatsapp" size={18} color="white" />
-            <Text style={s.btnWAText}>WhatsApp</Text>
-          </TouchableOpacity>
+          {!isOwner ? (
+            <TouchableOpacity style={s.btnWA} onPress={openWhatsApp} activeOpacity={0.85}>
+              <FontAwesome5 name="whatsapp" size={18} color="white" />
+              <Text style={s.btnWAText}>WhatsApp</Text>
+            </TouchableOpacity>
+          ) : (
+            <>
+              <TouchableOpacity style={s.btnManage} onPress={() => setIsEditModalVisible(true)} activeOpacity={0.85}>
+                <Ionicons name="create-outline" size={17} color="white" />
+                <Text style={s.btnManageText}>Edit</Text>
+              </TouchableOpacity>
 
-          <TouchableOpacity style={s.btnManage} onPress={openOptions} activeOpacity={0.85}>
-            <Ionicons name="settings-outline" size={17} color="white" />
-            <Text style={s.btnManageText}>Manage</Text>
+              <TouchableOpacity style={s.btnManage} onPress={() => setIsMarkAsSoldVisible(true)} activeOpacity={0.85}>
+                <Ionicons name="checkmark-done" size={17} color="white" />
+                <Text style={s.btnManageText}>Sold</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={s.btnShare} onPress={handleDelete} activeOpacity={0.85}>
+                <Ionicons name="trash-outline" size={18} color="white" />
+              </TouchableOpacity>
+            </>
+          )}
+
+          <TouchableOpacity style={s.btnShare} onPress={onShare} activeOpacity={0.85}>
+            <Ionicons name="share-social-outline" size={18} color="white" />
           </TouchableOpacity>
         </View>
       </View>
-
-      {/* ══════════════════════════════════
-          OPTIONS SHEET
-      ══════════════════════════════════ */}
-      <Modal visible={optionsVisible} transparent animationType="none" onRequestClose={() => closeOptions()}>
-        <Pressable style={s.overlay} onPress={() => closeOptions()}>
-          <Pressable onPress={(e) => e.stopPropagation()}>
-            <Animated.View style={[s.sheet, { transform: [{ translateY: slideAnim }] }]}>
-              <View style={s.sheetHandle} />
-              <Text style={s.sheetTitle} numberOfLines={1}>{item.name}</Text>
-
-              <TouchableOpacity style={s.sheetOption} activeOpacity={0.7}
-                onPress={() => closeOptions(() => setIsEditModalVisible(true))}>
-                <View style={[s.optIcon, { backgroundColor: "#2563EB" }]}>
-                  <Ionicons name="create-outline" size={20} color="white" />
-                </View>
-                <View>
-                  <Text style={s.optTitle}>Edit Details</Text>
-                  <Text style={s.optSub}>Update name, price, description</Text>
-                </View>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={s.sheetOption} activeOpacity={0.7}
-                onPress={() => closeOptions(() => setIsMarkAsSoldVisible(true))}>
-                <View style={[s.optIcon, { backgroundColor: "#4F46E5" }]}>
-                  <Ionicons name="checkmark-done" size={20} color="white" />
-                </View>
-                <View>
-                  <Text style={s.optTitle}>Mark as Sold</Text>
-                  <Text style={s.optSub}>Fast sale or save logs</Text>
-                </View>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={s.sheetOption} activeOpacity={0.7} onPress={handleDelete}>
-                <View style={[s.optIcon, { backgroundColor: "#DC2626" }]}>
-                  <Ionicons name="trash-outline" size={20} color="white" />
-                </View>
-                <View>
-                  <Text style={[s.optTitle, { color: "#EF4444" }]}>Delete Post</Text>
-                  <Text style={s.optSub}>Permanently remove listing</Text>
-                </View>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={s.cancelBtn} activeOpacity={0.7} onPress={() => closeOptions()}>
-                <Text style={s.cancelText}>Cancel</Text>
-              </TouchableOpacity>
-            </Animated.View>
-          </Pressable>
-        </Pressable>
-      </Modal>
 
       {/* ══════════════════════════════════
           EDIT MODAL
@@ -467,6 +426,28 @@ const FeedProductCardInner: React.FC<FeedProductCardProps> = ({
         </Pressable>
       </Modal>
 
+      <CustomDialog
+        visible={deleteDialogVisible}
+        title="Delete Listing"
+        message={`Are you sure you want to permanently delete "${item.name}"? This action cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        isDestructive={true}
+        onCancel={() => setDeleteDialogVisible(false)}
+        onConfirm={confirmDelete}
+      />
+
+      <CustomDialog
+        visible={fastSaleDialogVisible}
+        title="Fast Sale"
+        message="Mark this listing as Sold instantly and remove it from search results?"
+        confirmText="Mark Sold"
+        cancelText="Cancel"
+        isDestructive={false}
+        onCancel={() => setFastSaleDialogVisible(false)}
+        onConfirm={confirmFastSale}
+      />
+
       <BarcodeScannerModal
         visible={scannerVisible}
         onScan={handleBarcodeScan}
@@ -545,6 +526,12 @@ const s = StyleSheet.create({
     shadowOpacity: 0.4, shadowRadius: 8, elevation: 5,
   },
   btnWAText: { color: "white", fontWeight: "800", fontSize: 14 },
+  btnShare: {
+    width: 48, height: 48, borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.13)",
+    alignItems: "center", justifyContent: "center",
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.22)",
+  },
   btnManage: {
     flex: 1, height: 48, borderRadius: 14,
     backgroundColor: "rgba(255,255,255,0.13)",

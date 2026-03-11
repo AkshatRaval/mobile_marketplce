@@ -101,9 +101,6 @@ export default function SearchPage() {
             <Text style={{ fontSize: 26, fontWeight: "900", color: "#0F0F1A", letterSpacing: -0.5 }}>
               Search
             </Text>
-            <Text style={{ fontSize: 12, color: "#9CA3AF", fontWeight: "500", marginTop: 1 }}>
-              Find phones or shops instantly
-            </Text>
           </View>
         </View>
 

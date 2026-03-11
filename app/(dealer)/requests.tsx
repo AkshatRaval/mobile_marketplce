@@ -201,9 +201,9 @@ export default function RequestsPage() {
       {/* HEADER */}
       <View className="px-6 py-4 bg-white border-b border-gray-100 flex-row justify-between items-center">
         <View>
-          <Text className="text-gray-400 text-xs font-bold uppercase tracking-wider">
+          {/* <Text className="text-gray-400 text-xs font-bold uppercase tracking-wider">
             Reverse Market
-          </Text>
+          </Text> */}
           <Text className="text-2xl font-black text-gray-900">
             Buying Requests
           </Text>

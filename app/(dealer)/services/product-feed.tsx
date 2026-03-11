@@ -27,45 +27,53 @@ export default function ProductFeed() {
   const { user } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { productId, from } = useLocalSearchParams();
+  const { productId, from, userId: paramUserId, t, initialIndex } = useLocalSearchParams();
 
-  const { listings } = useProfileData(user?.id);
+  const paramUserIdStr = typeof paramUserId === "string" ? paramUserId : paramUserId?.[0];
+  const targetUserId = paramUserIdStr || user?.id;
+  const { listings, profileData, loading } = useProfileData(targetUserId);
+
   const [displayListings, setDisplayListings] = useState<any[]>([]);
   const flatListRef = useRef<FlatList<any>>(null);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  // Track which productId we last scrolled to — so we re-scroll whenever it changes
-  const lastProductId = useRef<string | null>(null);
-  const startIndexRef = useRef(0);
+
+  // --- DERIVED STATE & CACHE BUSTING ---
+  const currentT = typeof t === "string" ? t : t?.[0] ?? "";
+  const pid = typeof productId === "string" ? productId : productId?.[0] ?? "";
+  const initIdxStr = typeof initialIndex === "string" ? initialIndex : initialIndex?.[0] ?? "";
+
+  // Compute our target starting index
+  let defaultIdx = 0;
+  if (initIdxStr && !isNaN(parseInt(initIdxStr, 10))) {
+    defaultIdx = parseInt(initIdxStr, 10);
+  } else if (pid && listings.length > 0) {
+    const found = listings.findIndex((l) => l.id === pid);
+    if (found >= 0) defaultIdx = found;
+  }
+
+  const [currentIndex, setCurrentIndex] = useState(defaultIdx);
+
+  // Synchronously reset `currentIndex` when moving to a new click event (t changes)
+  const lastT = useRef<string>(currentT);
+  if (currentT !== lastT.current) {
+    lastT.current = currentT;
+    setCurrentIndex(defaultIdx);
+  }
+
+  // --- LISTINGS FETCH EFFECT ---
+  const lastTargetUserId = useRef<string | null | undefined>(null);
 
   useEffect(() => {
-    if (listings.length === 0) return;
-
-    // Always update the listings data
-    setDisplayListings(listings);
-
-    // Only re-scroll if productId has changed (new product tapped from grid)
-    const pid = typeof productId === "string" ? productId : productId?.[0] ?? null;
-    if (pid === lastProductId.current) return;
-    lastProductId.current = pid;
-
-    // Find the correct index in the FULL listings array using productId
-    let idx = 0;
-    if (pid) {
-      const found = listings.findIndex((l) => l.id === pid);
-      if (found >= 0) idx = found;
+    // Force a fresh loading screen if swapping entire dealer profiles
+    if (targetUserId !== lastTargetUserId.current) {
+      lastTargetUserId.current = targetUserId;
+      setDisplayListings([]);
     }
 
-    startIndexRef.current = idx;
-    setCurrentIndex(idx);
+    if (loading || listings.length === 0) return;
 
-    // Scroll imperatively — works whether FlatList is freshly mounted or already visible
-    if (idx === 0) return;
-    const doScroll = () => {
-      flatListRef.current?.scrollToIndex({ index: idx, animated: false });
-    };
-    // Try immediately, then retry after layout if FlatList wasn't ready
-    setTimeout(doScroll, 0);
-  }, [listings, productId]);
+    // Apply the active listings array once loaded
+    setDisplayListings(listings);
+  }, [listings, loading, targetUserId]);
 
   const handleDeleted = useCallback((deletedId: string) => {
     setDisplayListings((prev) => prev.filter((l) => l.id !== deletedId));
@@ -83,11 +91,15 @@ export default function ProductFeed() {
 
   const handleClose = useCallback(() => {
     if (from === "profile") {
-      router.navigate("/(dealer)/profile" as any);
+      if (paramUserIdStr && paramUserIdStr !== user?.id) {
+        router.navigate(`/(dealer)/profile/${paramUserIdStr}` as any);
+      } else {
+        router.navigate("/(dealer)/profile" as any);
+      }
     } else {
       router.navigate("/(dealer)/home" as any);
     }
-  }, [from, router]);
+  }, [from, paramUserIdStr, user?.id, router]);
 
   useEffect(() => {
     const sub = BackHandler.addEventListener("hardwareBackPress", () => {
@@ -119,16 +131,17 @@ export default function ProductFeed() {
           item={item}
           height={CARD_H}
           width={CARD_W}
+          dealerPhone={profileData?.phone}
           onClose={handleClose}
           onDeleted={handleDeleted}
           onUpdated={handleUpdated}
         />
       </View>
     ),
-    [handleClose, handleDeleted, handleUpdated]
+    [handleClose, handleDeleted, handleUpdated, profileData?.phone]
   );
 
-  if (displayListings.length === 0) {
+  if (loading || displayListings.length === 0) {
     return (
       <View style={styles.loading}>
         <ActivityIndicator size="large" color="#4F46E5" />
@@ -137,6 +150,7 @@ export default function ProductFeed() {
   }
 
   const total = displayListings.length;
+  const isOwner = targetUserId === user?.id;
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -148,7 +162,7 @@ export default function ProductFeed() {
         </TouchableOpacity>
 
         <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>My Listings</Text>
+          <Text style={styles.headerTitle}>{isOwner ? "My Listings" : "Listings"}</Text>
           <Text style={styles.headerSub}>{currentIndex + 1} of {total}</Text>
         </View>
 
@@ -171,6 +185,7 @@ export default function ProductFeed() {
       {/* ── CARD SWIPER ── */}
       <View style={styles.cardBox}>
         <FlatList
+          key={currentT || "feed"}
           ref={flatListRef}
           data={displayListings}
           keyExtractor={(item) => item.id}
@@ -181,9 +196,9 @@ export default function ProductFeed() {
           snapToInterval={CARD_H}
           snapToAlignment="start"
           getItemLayout={getItemLayout}
-          // initialScrollIndex works reliably here because startIndexRef.current
-          // is set synchronously before displayListings state update triggers this render.
-          initialScrollIndex={startIndexRef.current || undefined}
+          // initialScrollIndex bounded synchronously against displayListings.
+          // The key=currentT forcefully unmounts FlatList for every unique tab open.
+          initialScrollIndex={displayListings.length > 0 ? Math.min(defaultIdx, displayListings.length - 1) : 0}
           windowSize={3}
           maxToRenderPerBatch={2}
           initialNumToRender={2}
@@ -191,7 +206,6 @@ export default function ProductFeed() {
           onViewableItemsChanged={onViewableItemsChanged}
           viewabilityConfig={viewabilityConfig}
           onScrollToIndexFailed={(info) => {
-            // FlatList fallback: wait for layout then retry
             const wait = new Promise((r) => setTimeout(r, 100));
             wait.then(() => {
               flatListRef.current?.scrollToIndex({ index: info.index, animated: false });

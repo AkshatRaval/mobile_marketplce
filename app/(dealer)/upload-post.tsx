@@ -78,7 +78,7 @@ export default function UploadPost() {
       {/* CLEAN HEADER */}
       <View className="px-6 py-5 bg-white border-b border-gray-100">
         <Text className="text-2xl font-black text-gray-900">Create Listing</Text>
-        <Text className="text-sm text-gray-500 mt-1">Fill in the details below</Text>
+        {/* <Text className="text-sm text-gray-500 mt-1">Fill in the details below</Text> */}
       </View>
 
       <KeyboardAvoidingView

@@ -7,16 +7,14 @@ import React, { useCallback, useMemo, useState } from "react";
 import {
   Dimensions,
   Image,
-  Linking,
   Modal,
   Platform,
   Pressable,
   ScrollView,
-  Share,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 
 const { width: SW, height: SH } = Dimensions.get("window");
@@ -26,17 +24,12 @@ if (Platform.OS !== "web") {
   ImageView = require("react-native-image-viewing").default;
 }
 
+import { communications } from "@/src/utils/communications";
+
 export const CARD_HEIGHT = 160;
 const IMG_W = 140;
 const THUMB_W = 100;
 const THUMB_H = 80;
-
-function cleanPhoneForWA(raw: string): string {
-  let digits = raw.replace(/\D/g, "");
-  if (digits.startsWith("0")) digits = "91" + digits.slice(1);
-  if (digits.length === 10) digits = "91" + digits;
-  return digits;
-}
 
 interface Props { item: Product }
 
@@ -77,23 +70,13 @@ const SearchProductCardInner: React.FC<Props> = ({ item }) => {
     setViewerOpen(true);
   }, []);
 
-  const openWhatsApp = useCallback(async () => {
-    const raw = item.dealerPhone;
-    if (!raw) { alert("Dealer's phone number is not available."); return; }
-    const phone = cleanPhoneForWA(raw);
-    const msg = encodeURIComponent(
-      `Hi! I'm interested in: *${item.name}* — ${priceStr}`
-    );
-    const waDeep = `whatsapp://send?phone=${phone}&text=${msg}`;
-    const waWeb = `https://wa.me/${phone}?text=${msg}`;
-    const canOpen = await Linking.canOpenURL(waDeep).catch(() => false);
-    Linking.openURL(canOpen ? waDeep : waWeb).catch(() => alert("Could not open WhatsApp"));
-  }, [item.dealerPhone, item.name, priceStr]);
+  const openWhatsApp = useCallback(() => {
+    communications.askDealerForProduct(item.dealerPhone, item.name, desc, priceStr, item.id);
+  }, [item.dealerPhone, item.name, desc, priceStr, item.id]);
 
-  const onShare = useCallback(() =>
-    Share.share({
-      message: `Check out *${item.name}* for ${priceStr} on Go Dealers!`,
-    }).catch(() => { }), [item.name, priceStr]);
+  const onShare = useCallback(() => {
+    communications.shareProduct(item.name, desc, priceStr, item.id);
+  }, [item.name, desc, priceStr, item.id]);
 
   const goToProfile = useCallback(() => {
     const uid = item.userId || item.dealerId || (item as any).owner_id;

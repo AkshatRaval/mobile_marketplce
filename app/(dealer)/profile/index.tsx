@@ -366,6 +366,7 @@ export default function Profile() {
                 productId: item.id,
                 initialIndex: index.toString(),
                 from: "profile",
+                t: Date.now().toString(),
               },
             });
           }}
@@ -411,19 +412,7 @@ export default function Profile() {
   const ListHeader = useMemo(
     () => (
       <View className="bg-white" collapsable={false}>
-        <View className="flex-row justify-between items-center px-6 pt-4 mb-6">
-          <Text className="text-gray-400 font-bold text-[10px] uppercase tracking-[2px]">
-            MY PROFILE
-          </Text>
-          <TouchableOpacity
-            onPress={() => toggleDrawer(true)}
-            className="bg-gray-50 p-2.5 rounded-2xl active:bg-gray-200"
-          >
-            <Ionicons name="menu-outline" size={24} color="black" />
-          </TouchableOpacity>
-        </View>
-
-        <View className="px-6 flex-row items-center mb-6">
+        <View className="px-6 flex-row items-center mb-6 mt-4">
           <TouchableOpacity
             onPress={handlePickProfileImage}
             className="relative"
@@ -441,12 +430,22 @@ export default function Profile() {
             </View>
           </TouchableOpacity>
           <View className="flex-1">
-            <Text className="text-2xl font-black text-gray-900 leading-tight">
-              {profileData?.displayName || "Dealer"}
-            </Text>
-            <Text className="text-indigo-600 font-bold text-xs uppercase tracking-wider">
-              {profileData?.shopName || "Member"}
-            </Text>
+            <View className="flex-row items-center justify-between">
+              <View className="flex-1 mr-2">
+                <Text className="text-2xl font-black text-gray-900 leading-tight">
+                  {profileData?.displayName || "Dealer"}
+                </Text>
+                <Text className="text-indigo-600 font-bold text-xs uppercase tracking-wider">
+                  {profileData?.shopName || "Member"}
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => toggleDrawer(true)}
+                className="bg-gray-50 p-2 rounded-xl active:bg-gray-200"
+              >
+                <Ionicons name="menu-outline" size={24} color="black" />
+              </TouchableOpacity>
+            </View>
             <View className="flex-row items-center mt-3 gap-6">
               <View>
                 <Text className="text-lg font-black">{listings.length}</Text>

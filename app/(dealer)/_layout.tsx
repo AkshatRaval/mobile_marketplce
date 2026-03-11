@@ -48,8 +48,8 @@ function TabsContent() {
     const handlePress = () => {
       // Check if current path corresponds to this tab
       // e.g. pathname="/dealer/home" and routeName="home" -> Match
-      const isActive = pathname?.includes(routeName) ||
-        (routeName === 'profile/index' && pathname?.includes('profile'));
+      const normalizedRoute = routeName.replace('/index', '');
+      const isActive = pathname === `/${normalizedRoute}` || pathname === `/(dealer)/${normalizedRoute}`;
 
       if (isActive) {
         // Already active -> Refresh
