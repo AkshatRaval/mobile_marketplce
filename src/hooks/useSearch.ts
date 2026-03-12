@@ -3,7 +3,7 @@
 
 import { searchApi } from "@/src/services/api/searchApi";
 import type { Product, ShopResult } from "@/src/types";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Keyboard } from "react-native";
 
 type SearchTab = "products" | "shops";
@@ -15,7 +15,10 @@ interface UseSearchReturn {
   setSearchText: (text: string) => void;
   hasSearched: boolean;
   handleSearch: () => Promise<void>;
+  searchWithText: (text: string) => Promise<void>;
   clearSearch: () => void;
+  suggestions: { id: string; text: string; city: string; match_type: string }[];
+  isSuggesting: boolean;
   results: Product[];
   loading: boolean;
   loadingMore: boolean;
@@ -34,6 +37,38 @@ export function useSearch(): UseSearchReturn {
   const [searchText, setSearchText] = useState("");
   const [hasSearched, setHasSearched] = useState(false);
   const [lastSearchMs, setLastSearchMs] = useState<number | null>(null);
+
+  // Suggestions
+  const [suggestions, setSuggestions] = useState<{ id: string; text: string; city: string; match_type: string }[]>([]);
+  const [isSuggesting, setIsSuggesting] = useState(false);
+  const debounceTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Auto-fetch suggestions when typing
+  useEffect(() => {
+    // Only fetch suggestions if products tab, have text, and haven't pressed "search" yet
+    if (!searchText.trim() || hasSearched || activeTab !== "products") {
+      setSuggestions([]);
+      return;
+    }
+
+    if (debounceTimeout.current) clearTimeout(debounceTimeout.current);
+
+    setIsSuggesting(true);
+    debounceTimeout.current = setTimeout(async () => {
+      try {
+        const data = await searchApi.getSmartSuggestions(searchText);
+        if (!hasSearched) setSuggestions(data); // avoid race condition if they just hit search
+      } catch (err) {
+        console.error("Error fetching suggestions:", err);
+      } finally {
+        setIsSuggesting(false);
+      }
+    }, 150);
+
+    return () => {
+      if (debounceTimeout.current) clearTimeout(debounceTimeout.current);
+    }
+  }, [searchText, hasSearched, activeTab]);
 
   // Products
   const [results, setResults] = useState<Product[]>([]);
@@ -92,6 +127,51 @@ export function useSearch(): UseSearchReturn {
     }
   };
 
+  // ── searchWithText — used by suggestion taps to avoid async state race ───
+  const searchWithText = async (text: string) => {
+    if (!text.trim()) return;
+    Keyboard.dismiss();
+    setSearchText(text);
+    setHasSearched(true);
+    setSuggestions([]);
+
+    if (activeTab === "products") {
+      setLoading(true);
+      setResults([]);
+      productPageRef.current = 0;
+      setHasMore(true);
+      const t = Date.now();
+      try {
+        const { products, hasMore: more } = await searchApi.searchProducts(text, 0);
+        setResults(products);
+        setHasMore(more);
+        setLastSearchMs(Date.now() - t);
+      } catch (err) {
+        console.error("Product search error:", err);
+        setResults([]);
+      } finally {
+        setLoading(false);
+      }
+    } else {
+      setShopLoading(true);
+      setShopResults([]);
+      shopPageRef.current = 0;
+      setShopHasMore(true);
+      const t = Date.now();
+      try {
+        const { shops, hasMore: more } = await searchApi.searchShops(text, 0);
+        setShopResults(shops);
+        setShopHasMore(more);
+        setLastSearchMs(Date.now() - t);
+      } catch (err) {
+        console.error("Shop search error:", err);
+        setShopResults([]);
+      } finally {
+        setShopLoading(false);
+      }
+    }
+  };
+
   // ── loadMore products ─────────────────────────────────────
   const loadMore = useCallback(async () => {
     if (loadingMore || !hasMore || !searchText.trim()) return;
@@ -137,6 +217,7 @@ export function useSearch(): UseSearchReturn {
     setLastSearchMs(null);
     productPageRef.current = 0;
     shopPageRef.current = 0;
+    setSuggestions([]);
   };
 
   return {
@@ -146,7 +227,10 @@ export function useSearch(): UseSearchReturn {
     setSearchText,
     hasSearched,
     handleSearch,
+    searchWithText,
     clearSearch,
+    suggestions,
+    isSuggesting,
     results,
     loading,
     loadingMore,

@@ -34,6 +34,7 @@ export default function SearchPage() {
     setSearchText,
     hasSearched,
     handleSearch,
+    searchWithText,
     clearSearch,
     results,
     loading,
@@ -43,6 +44,8 @@ export default function SearchPage() {
     shopLoading,
     shopLoadingMore,
     loadMoreShops,
+    suggestions,
+    isSuggesting,
   } = useSearch();
 
   const flatListRef = useRef<FlashListRef<any>>(null);
@@ -141,7 +144,7 @@ export default function SearchPage() {
             onSubmitEditing={handleSearch}
           />
           {searchText.length > 0 ? (
-            <TouchableOpacity onPress={() => setSearchText("")} style={{ padding: 4 }}>
+            <TouchableOpacity onPress={clearSearch} style={{ padding: 4 }}>
               <Ionicons name="close-circle" size={18} color="#C0C0CC" />
             </TouchableOpacity>
           ) : null}
@@ -230,6 +233,44 @@ export default function SearchPage() {
             </View>
           )
         ) : !hasSearched ? (
+          activeTab === "products" && suggestions.length > 0 ? (
+            /* ── SUGGESTIONS LIST ── */
+            <View style={{ flex: 1, backgroundColor: "#fff", paddingTop: 4 }}>
+              {isSuggesting && (
+                <View style={{ position: "absolute", top: 12, right: 20, zIndex: 10 }}>
+                  <ActivityIndicator size="small" color="#A5B4FC" />
+                </View>
+              )}
+              {suggestions.map((item, index) => (
+                <TouchableOpacity
+                  key={`suggestion_${item.text}`}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    paddingVertical: 14,
+                    paddingHorizontal: 20,
+                    borderBottomWidth: 1,
+                    borderBottomColor: "#F4F4F8"
+                  }}
+                  onPress={() => searchWithText(item.text)}
+                >
+                  <Ionicons 
+                    name={item.match_type === "vector" ? "sparkles" : "search-outline"} 
+                    size={20} 
+                    color={item.match_type === "vector" ? "#8B5CF6" : "#A1A1AA"} 
+                    style={{ marginRight: 14 }} 
+                  />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 16, color: "#1F2937", fontWeight: "500" }}>{item.text}</Text>
+                    {item.match_type === "vector" && (
+                      <Text style={{ fontSize: 12, color: "#8B5CF6", marginTop: 2, fontWeight: "600" }}>AI Suggested</Text>
+                    )}
+                  </View>
+                  <Ionicons name="arrow-forward" size={16} color="#D4D4D8" />
+                </TouchableOpacity>
+              ))}
+            </View>
+          ) : (
           /* ── IDLE STATE ── */
           <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingBottom: 80 }}>
             <LinearGradient
@@ -258,6 +299,7 @@ export default function SearchPage() {
                 : "Search by shop name, dealer name or city"}
             </Text>
           </View>
+          )
         ) : isEmpty ? (
           /* ── NO RESULTS ── */
           <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingBottom: 80 }}>
